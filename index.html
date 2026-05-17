@@ -407,7 +407,7 @@ input[type=file]{display:none}
     </div>
   </div>
 
-  <div class="login-version">Flow HR v3.08 · © 2026 Flow Engineering and Service Co.,Ltd.</div>
+  <div class="login-version">Flow HR v3.09 · © 2026 Flow Engineering and Service Co.,Ltd.</div>
 </div>
 
 <!-- ============ DESKTOP ============ -->
@@ -990,7 +990,7 @@ input[type=file]{display:none}
           <input type="date" class="f-inp" id="nf-probation">
         </div>
       </div>
-      <div class="form-grid2">
+      <div class="form-grid2" id="salary-field-wrap">
         <div class="f-group"><label class="f-lbl">ประเภท</label>
           <select class="f-inp f-sel" id="nf-salary-type">
             <option value="monthly">รายเดือน</option>
@@ -1532,7 +1532,7 @@ function renderEmpTable(data){
       <td style="font-size:12px">${e.title||'—'}</td>
       <td style="font-size:12px">${e.position||'—'}</td>
       <td><span class="badge ${DEPT_CLS[e.department]||'b-blue'}">${e.department||'—'}</span></td>
-      <td style="font-size:12px">${can('salary_view')?'฿'+(e.salary||0).toLocaleString('th-TH'):'—'}</td>
+      <td style="font-size:12px">${maskSalary(e.id, e.salary)}</td>
       <td><span class="tenure-chip">${td.text||'—'}</span></td>
       <td>${empStatusBadge(e)}</td>
       <td>
@@ -1596,6 +1596,22 @@ function openAddEmpSheet(){
   const av=document.getElementById('sh-new-av');
   if(av) av.innerHTML='<div class="ini"><i class="ti ti-camera" style="font-size:28px;color:#9E9E9E"></i></div><div class="cam-overlay"><i class="ti ti-camera" style="color:#fff;font-size:20px"></i></div>';
   newEmpPhoto=null;
+  // ซ่อน/แสดง field เงินเดือนตามสิทธิ์
+  const salaryFields = ['nf-salary','nf-salary-type'];
+  const canEdit = canSeeSalary(e.id);
+  salaryFields.forEach(fid => {
+    const el = document.getElementById(fid);
+    if(el){
+      el.disabled = !canEdit;
+      el.style.background = canEdit ? '' : '#F5F5F5';
+      el.style.color = canEdit ? '' : '#B0BEC5';
+      if(!canEdit) el.value = canEdit ? el.value : '';
+    }
+  });
+  // ซ่อน label เงินเดือนถ้าไม่มีสิทธิ์
+  const salaryWrap = document.getElementById('salary-field-wrap');
+  if(salaryWrap) salaryWrap.style.display = canEdit ? '' : 'none';
+
   // สถานะ
   let status = 'active';
   if(!e.is_active && e.end_date) status = 'resigned';
@@ -1648,6 +1664,22 @@ function openEditEmp(id){
   // รูป
   const av=document.getElementById('sh-new-av');
   if(av && e.photo_url) av.innerHTML=`<img src="${e.photo_url}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`;
+  // ซ่อน/แสดง field เงินเดือนตามสิทธิ์
+  const salaryFields = ['nf-salary','nf-salary-type'];
+  const canEdit = canSeeSalary(e.id);
+  salaryFields.forEach(fid => {
+    const el = document.getElementById(fid);
+    if(el){
+      el.disabled = !canEdit;
+      el.style.background = canEdit ? '' : '#F5F5F5';
+      el.style.color = canEdit ? '' : '#B0BEC5';
+      if(!canEdit) el.value = canEdit ? el.value : '';
+    }
+  });
+  // ซ่อน label เงินเดือนถ้าไม่มีสิทธิ์
+  const salaryWrap = document.getElementById('salary-field-wrap');
+  if(salaryWrap) salaryWrap.style.display = canEdit ? '' : 'none';
+
   // สถานะ
   let status = 'active';
   if(!e.is_active && e.end_date) status = 'resigned';
@@ -1670,7 +1702,7 @@ async function confirmDeleteEmp(id, name){
   await loadEmps();
 }
 function exportCSV(){
-  const rows=[['ชื่อ','ตำแหน่ง','แผนก','วันเกิด','วันเริ่มงาน','เงินเดือน'],...emps.map(e=>[e.name,e.position,e.department,e.date_of_birth||'',e.start_date||'',e.salary||0])];
+  const rows=[['ชื่อ','ตำแหน่ง','แผนก','วันเกิด','วันเริ่มงาน',...(can('salary_view')?['เงินเดือน']:[])],...emps.map(e=>[e.name,e.position,e.department,e.date_of_birth||'',e.start_date||'',...(can('salary_view')?[e.salary||0]:[])])];
   const csv=rows.map(r=>r.join(',')).join('\n');
   const a=document.createElement('a');a.href='data:text/csv;charset=utf-8,\uFEFF'+encodeURIComponent(csv);a.download='employees.csv';a.click();
 }
@@ -1722,7 +1754,7 @@ async function saveEmp(){
     start_date:     g('nf-start'),
     probation_end:  g('nf-probation'),
     salary_type:    g('nf-salary-type') || 'monthly',
-    salary:         parseFloat(g('nf-salary')||'0') || 0,
+    ...(canSeeSalary(editId||null) ? {salary: parseFloat(g('nf-salary')||'0') || 0} : {}),
     role:           g('nf-role') || 'employee',
     bank_name:      g('nf-bank-name'),
     bank_account:   g('nf-bank-account'),
@@ -1880,7 +1912,7 @@ function initPRSelects(){
   for(let i=0;i<6;i++){const d=new Date(CUR_Y,CUR_M-i,1);const o=document.createElement('option');o.value=d.getMonth()+','+d.getFullYear();o.textContent=MTH_F[d.getMonth()]+' '+d.getFullYear();sel.appendChild(o);}
 }
 function renderPayrollTable(){
-  const total=emps.reduce((s,e)=>s+(e.salary||0),0);
+  const total = can('salary_view') ? emps.reduce((s,e)=>s+(e.salary||0),0) : 0;
   const dilTotal = emps.length * 500; // เบี้ยขยัน max ทุกคน
   const kpi=document.getElementById('d-pr-kpi');
   if(kpi)kpi.innerHTML=[
@@ -1899,7 +1931,7 @@ function renderPayrollTable(){
     return`<tr>
       <td><div style="display:flex;align-items:center;gap:10px">${avHTML(e,34)}<div style="font-weight:500">${e.name}</div></div></td>
       <td><span class="badge ${DEPT_CLS[e.department]||'b-blue'}">${e.department||'—'}</span></td>
-      <td>฿${sal.toLocaleString('th-TH')}</td>
+      <td>${canSeeSalary(e.id)?'฿'+sal.toLocaleString('th-TH'):'—'}</td>
       <td style="color:var(--green)">+฿${dil}</td>
       <td style="color:var(--orange)">-฿${sso.toFixed(0)}</td>
       <td style="color:var(--orange)">-฿${tax.toFixed(0)}</td>
@@ -1945,6 +1977,12 @@ function renderPS(pfx,aId){
   const emp=emps.find(e=>e.id==empId);
   const area=document.getElementById(aId);if(!area)return;
   if(!emp){area.innerHTML='<div style="text-align:center;color:#B0BEC5;padding:30px;font-size:12px">เลือกพนักงาน</div>';return;}
+  // ตรวจสิทธิ์ — ดูสลิปตัวเองได้เสมอ แต่คนอื่นต้องมีสิทธิ์
+  if(!canSeeSalary(emp.id)){
+    const nm = emp.first_name||emp.name||'';
+    area.innerHTML = '<div class="no-access"><i class="ti ti-lock" aria-hidden="true"></i><h3>ไม่มีสิทธิ์</h3><p>ดูสลิปเงินเดือนของ <b>'+nm+'</b> ไม่ได้<br>สิทธิ์นี้สำหรับ MD และ HR Manager เท่านั้น</p></div>';
+    return;
+  }
   const[m,y]=(document.getElementById(`${pre}-ps-month`)?.value||CUR_M+','+CUR_Y).split(',').map(Number);
   const sal=emp.salary||0,sso=Math.min(sal*0.05,750),tax=Math.max(0,((sal*12-160000)*0.05)/12),net=sal-sso-tax;
   area.innerHTML=`<div class="card" style="padding:0;overflow:hidden"><div class="ps-top"><div style="font-size:12px;opacity:.8">เงินสุทธิที่ได้รับ</div><div class="ps-net">฿${Math.round(net).toLocaleString('th-TH')}</div><div style="font-size:11px;opacity:.7;margin-top:4px">${MTH_F[m]} ${y} · ${emp.name} · ${emp.position||'—'}</div></div><div class="ps-body"><div class="ps-sec">รายได้</div><div class="ps-row"><span>เงินเดือนฐาน</span><span>฿${sal.toLocaleString('th-TH')}</span></div><div class="ps-sec">หักออก</div><div class="ps-row"><span>ประกันสังคม (5%)</span><span style="color:var(--red)">-฿${sso.toFixed(2)}</span></div><div class="ps-row"><span>ภาษีหัก ณ ที่จ่าย</span><span style="color:var(--red)">-฿${tax.toFixed(2)}</span></div><div class="ps-row ps-total"><span>เงินสุทธิ</span><span>฿${Math.round(net).toLocaleString('th-TH')}</span></div></div></div><button class="btn-fw" style="margin-top:10px" onclick="showToast('ดาวน์โหลด PDF')"><i class="ti ti-download" aria-hidden="true"></i>ดาวน์โหลด PDF</button>`;
@@ -2122,6 +2160,19 @@ function isHR(){ return currentUser && ['owner','hr_manager'].includes(currentUs
 function isOwner(){ return currentUser?.role === 'owner'; }
 function isDeptHead(){ return currentUser?.role === 'dept_head'; }
 function isAccountant(){ return currentUser?.role === 'accountant'; }
+
+// ดูเงินเดือนได้: owner, hr_manager เท่านั้น
+// หรือดูของตัวเองเสมอได้
+function canSeeSalary(empId){
+  if(!currentUser) return false;
+  if(['owner','hr_manager'].includes(currentUser.role)) return true;
+  if(empId && empId === currentUser.id) return true;
+  return false;
+}
+
+function maskSalary(empId, salary){
+  return canSeeSalary(empId) ? '฿'+(salary||0).toLocaleString('th-TH') : '—';
+}
 
 // โหลด custom permissions หลัง login
 async function loadMyPermissions(){
