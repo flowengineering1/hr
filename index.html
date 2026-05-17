@@ -275,6 +275,43 @@ input[type=file]{display:none}
 .device-alert.show{transform:translateY(0)}
 .device-alert i{font-size:20px;flex-shrink:0}
 .device-alert-close{margin-left:auto;background:rgba(255,255,255,.2);border:none;color:#fff;padding:4px 10px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600}
+
+/* ===== ORG CHART ===== */
+.org-wrap{overflow-x:auto;overflow-y:auto;padding:20px;min-height:400px}
+.org-tree{display:flex;flex-direction:column;align-items:center;gap:0}
+.org-level{display:flex;gap:24px;justify-content:center;position:relative;margin-bottom:0}
+.org-node-wrap{display:flex;flex-direction:column;align-items:center;position:relative}
+
+/* เส้นเชื่อม */
+.org-node-wrap::before{content:'';position:absolute;top:0;left:50%;width:1.5px;height:20px;background:#CFD8DC;transform:translateX(-50%)}
+.org-level:first-child > .org-node-wrap::before{display:none}
+.org-connector{position:relative;display:flex;justify-content:center;width:100%;height:20px;margin-top:0}
+.org-connector-line{position:absolute;top:0;background:#CFD8DC;height:1.5px}
+.org-connector-down{position:absolute;top:0;left:50%;width:1.5px;background:#CFD8DC;height:20px;transform:translateX(-50%)}
+
+/* การ์ดพนักงาน */
+.org-card{border-radius:14px;padding:12px 14px;border:1.5px solid #E0E0E0;background:#fff;min-width:140px;max-width:180px;text-align:center;cursor:pointer;transition:all .2s;position:relative;box-shadow:0 1px 4px rgba(0,0,0,.05)}
+.org-card:hover{border-color:#90CAF9;box-shadow:0 4px 16px rgba(21,101,192,.15);transform:translateY(-2px)}
+.org-card.role-owner{border-color:#FFB74D;background:linear-gradient(135deg,#FFF9C4,#FFF3E0)}
+.org-card.role-hr_manager{border-color:#90CAF9;background:linear-gradient(135deg,#E3F2FD,#F8FBFF)}
+.org-card.role-dept_head{border-color:#CE93D8;background:linear-gradient(135deg,#F3E5F5,#FAF5FF)}
+.org-card.role-accountant{border-color:#A5D6A7;background:linear-gradient(135deg,#E8F5E9,#F5FFF5)}
+.org-card.role-employee{border-color:#E0E0E0;background:#fff}
+.org-card.type-daily{border-style:dashed;border-color:#FFB74D}
+
+.org-av{width:52px;height:52px;border-radius:50%;margin:0 auto 8px;overflow:hidden;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700;color:#fff;position:relative}
+.org-av img{width:100%;height:100%;object-fit:cover;border-radius:50%}
+.org-name{font-size:12px;font-weight:700;line-height:1.3;margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.org-pos{font-size:10px;color:#78909C;margin-bottom:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.org-dept-badge{font-size:9px;padding:2px 7px;border-radius:10px;font-weight:600;display:inline-block}
+.org-type-badge{position:absolute;top:-6px;right:-6px;font-size:8px;padding:2px 5px;border-radius:8px;font-weight:700;background:#FFF3E0;color:#E65100;border:1px solid #FFB74D}
+
+/* filter bar */
+.org-filter{display:flex;gap:8px;padding:12px 16px;background:#fff;border-bottom:.5px solid #EBEBEB;overflow-x:auto;scrollbar-width:none}
+.org-filter::-webkit-scrollbar{display:none}
+.org-filter-btn{flex-shrink:0;padding:5px 14px;border-radius:20px;font-size:11px;font-weight:500;cursor:pointer;border:1px solid #E0E0E0;background:#fff;color:#546E7A;transition:all .15s}
+.org-filter-btn.act{background:#1565C0;color:#fff;border-color:#1565C0}
+
 /* ===== LOGIN PAGE ===== */
 #login-screen{position:fixed;inset:0;background:linear-gradient(160deg,#1565C0 0%,#0D47A1 50%,#1A237E 100%);z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px}
 .login-logo{width:90px;height:90px;border-radius:22px;overflow:hidden;box-shadow:0 8px 32px rgba(0,0,0,.3);margin-bottom:16px}
@@ -594,6 +631,39 @@ input[type=file]{display:none}
         <div id="d-offices-list"></div>
       </div>
 
+      <!-- ORG CHART -->
+      <div id="dp-orgchart" class="page">
+        <div class="org-filter" id="org-filter-bar">
+          <button class="org-filter-btn act" onclick="filterOrg('')">ทั้งบริษัท</button>
+          <button class="org-filter-btn" onclick="filterOrg('บริหาร')">บริหาร</button>
+          <button class="org-filter-btn" onclick="filterOrg('แผนกขายและการตลาด')">ขาย/การตลาด</button>
+          <button class="org-filter-btn" onclick="filterOrg('ผลิต')">ผลิต</button>
+          <button class="org-filter-btn" onclick="filterOrg('คลังสินค้า')">คลังสินค้า</button>
+          <button class="org-filter-btn" onclick="filterOrg('บัญชี')">บัญชี</button>
+        </div>
+        <div class="org-wrap" id="org-canvas">
+          <div style="text-align:center;color:#B0BEC5;padding:40px;font-size:12px">กำลังโหลด...</div>
+        </div>
+        <!-- Legend -->
+        <div style="display:flex;gap:16px;padding:10px 20px;background:#fff;border-top:.5px solid #EBEBEB;flex-wrap:wrap">
+          <div style="display:flex;align-items:center;gap:6px;font-size:11px;color:#546E7A">
+            <div style="width:14px;height:14px;border-radius:3px;background:linear-gradient(135deg,#FFF9C4,#FFF3E0);border:1.5px solid #FFB74D"></div>เจ้าของ
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;font-size:11px;color:#546E7A">
+            <div style="width:14px;height:14px;border-radius:3px;background:linear-gradient(135deg,#F3E5F5,#FAF5FF);border:1.5px solid #CE93D8"></div>หัวหน้าแผนก
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;font-size:11px;color:#546E7A">
+            <div style="width:14px;height:14px;border-radius:3px;background:linear-gradient(135deg,#E8F5E9,#F5FFF5);border:1.5px solid #A5D6A7"></div>บัญชี
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;font-size:11px;color:#546E7A">
+            <div style="width:14px;height:14px;border-radius:3px;background:#fff;border:1.5px solid #E0E0E0"></div>พนักงาน
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;font-size:11px;color:#546E7A">
+            <div style="width:14px;height:14px;border-radius:3px;background:#fff;border:1.5px dashed #FFB74D"></div>รายวัน
+          </div>
+        </div>
+      </div>
+
       <!-- REPORTS -->
       <div id="dp-reports" class="page">
         <div style="max-width:600px">
@@ -907,6 +977,7 @@ function goD(p){
   if(p==='payroll'){initPRSelects();renderPayrollTable();}
   if(p==='payslip'){initPSSelects('d');renderDPS();}
   if(p==='offices')renderOfficesList();
+  if(p==='orgchart')renderOrgChart();
 }
 function goM(p){
   document.querySelectorAll('#m-content .page').forEach(e=>e.classList.remove('show'));
@@ -2206,6 +2277,162 @@ function openAddEmpSheet(){
 // ============================================================
 // (รวมกับ triggerPhoto เดิมแล้ว — ใช้ employee id ตรงๆ)
 
+
+
+// ============================================================
+// ORG CHART
+// ============================================================
+let orgFilter = '';
+
+function filterOrg(dept){
+  orgFilter = dept;
+  document.querySelectorAll('.org-filter-btn').forEach(b=>{
+    b.classList.toggle('act', b.textContent.includes(dept||'ทั้งบริษัท') && (dept===''?b.textContent==='ทั้งบริษัท':true));
+  });
+  renderOrgChart();
+}
+
+function orgCardHTML(e){
+  if(!e) return '';
+  const deptBg  = DEPT_BG[e.department]||'#E3F2FD';
+  const deptCol = DEPT_COL[e.department]||'#1565C0';
+  const isDaily = e.salary_type === 'daily';
+  const avBg    = deptBg;
+  const avCol   = deptCol;
+  const avEl    = e.photo_url
+    ? `<img src="${e.photo_url}" alt="${e.name}">`
+    : `<span style="font-size:18px;font-weight:700;color:${avCol}">${ini(e.name)}</span>`;
+  const name = (e.first_name||e.name||'—') + (e.last_name?' '+e.last_name:'');
+  const deptCls = DEPT_CLS[e.department]||'b-blue';
+  const roleDesc = ROLES[e.role]?.label || e.role;
+
+  return `<div class="org-card role-${e.role}${isDaily?' type-daily':''}" onclick="openEditEmp('${e.id}')">
+    ${isDaily?'<div class="org-type-badge">รายวัน</div>':''}
+    <div class="org-av" style="background:${avBg};border:2.5px solid ${avCol}">${avEl}</div>
+    <div class="org-name" title="${name}">${name}</div>
+    <div class="org-pos" title="${e.position||'—'}">${e.position||'—'}</div>
+    <span class="org-dept-badge badge ${deptCls}">${e.department||'—'}</span>
+  </div>`;
+}
+
+function renderOrgChart(){
+  const canvas = document.getElementById('org-canvas');
+  if(!canvas || !emps.length) return;
+
+  const data = orgFilter
+    ? emps.filter(e => e.department === orgFilter || ['owner','hr_manager'].includes(e.role))
+    : emps;
+
+  // จัดกลุ่มตาม role
+  const owners     = data.filter(e=>e.role==='owner');
+  const hrMgrs     = data.filter(e=>e.role==='hr_manager');
+  const deptHeads  = data.filter(e=>e.role==='dept_head');
+  const accountants= data.filter(e=>e.role==='accountant');
+  const employees  = data.filter(e=>e.role==='employee');
+
+  // สร้าง HTML แบบ hierarchy
+  let html = `<div style="display:flex;flex-direction:column;align-items:center;gap:0;min-width:max-content;padding-bottom:20px">`;
+
+  // ===== Level 1: Owner =====
+  if(owners.length){
+    html += `<div style="display:flex;gap:24px;justify-content:center;margin-bottom:0">`;
+    owners.forEach(e=>{ html+=`<div class="org-node-wrap">${orgCardHTML(e)}</div>`; });
+    html += `</div>`;
+
+    // เส้นแนวตั้ง
+    if(hrMgrs.length||deptHeads.length||accountants.length||employees.length){
+      html += `<div style="width:1.5px;height:24px;background:#CFD8DC"></div>`;
+    }
+  }
+
+  // ===== Level 2: HR Manager + Accountant (อยู่ใต้ owner) =====
+  const level2 = [...hrMgrs, ...accountants];
+  if(level2.length){
+    // เส้นแนวนอน
+    if(level2.length > 1){
+      html += `<div style="position:relative;display:flex;justify-content:center;width:100%;height:0">
+        <div style="position:absolute;top:0;width:${Math.min(level2.length*204,600)}px;height:1.5px;background:#CFD8DC"></div>
+      </div>`;
+    }
+    html += `<div style="display:flex;gap:24px;justify-content:center;margin-bottom:0;position:relative">`;
+    level2.forEach(e=>{
+      html += `<div class="org-node-wrap">
+        <div style="width:1.5px;height:24px;background:#CFD8DC;margin:0 auto"></div>
+        ${orgCardHTML(e)}
+      </div>`;
+    });
+    html += `</div>`;
+
+    if(deptHeads.length || employees.length){
+      html += `<div style="width:1.5px;height:24px;background:#CFD8DC"></div>`;
+    }
+  }
+
+  // ===== Level 3: Dept Heads =====
+  if(deptHeads.length){
+    if(deptHeads.length > 1){
+      html += `<div style="position:relative;display:flex;justify-content:center;width:100%;height:0">
+        <div style="position:absolute;top:0;width:${Math.min(deptHeads.length*204,600)}px;height:1.5px;background:#CFD8DC"></div>
+      </div>`;
+    }
+    html += `<div style="display:flex;gap:24px;justify-content:center;margin-bottom:0">`;
+    deptHeads.forEach(e=>{
+      html += `<div class="org-node-wrap">
+        <div style="width:1.5px;height:24px;background:#CFD8DC;margin:0 auto"></div>
+        ${orgCardHTML(e)}
+      </div>`;
+    });
+    html += `</div>`;
+
+    if(employees.length){
+      html += `<div style="width:1.5px;height:24px;background:#CFD8DC"></div>`;
+    }
+  }
+
+  // ===== Level 4: Employees (จัดกลุ่มตาม dept) =====
+  if(employees.length){
+    // กลุ่มตามแผนก
+    const byDept = {};
+    employees.forEach(e=>{
+      const d = e.department||'อื่นๆ';
+      if(!byDept[d]) byDept[d]=[];
+      byDept[d].push(e);
+    });
+
+    const depts = Object.keys(byDept);
+    if(depts.length > 1){
+      html += `<div style="position:relative;display:flex;justify-content:center;width:100%;height:0">
+        <div style="position:absolute;top:0;width:${Math.min(depts.length*224,700)}px;height:1.5px;background:#CFD8DC"></div>
+      </div>`;
+    }
+
+    html += `<div style="display:flex;gap:32px;justify-content:center;align-items:flex-start;flex-wrap:wrap">`;
+    depts.forEach(dept=>{
+      const members = byDept[dept];
+      html += `<div style="display:flex;flex-direction:column;align-items:center;gap:0">`;
+      // หัว dept group
+      html += `<div style="width:1.5px;height:24px;background:#CFD8DC;margin:0 auto"></div>`;
+      html += `<div style="background:#F5F7FA;border-radius:8px;padding:4px 12px;font-size:10px;font-weight:700;color:#546E7A;margin-bottom:8px;border:1px solid #E0E0E0">${dept}</div>`;
+      // members
+      html += `<div style="display:flex;gap:12px;flex-wrap:wrap;justify-content:center">`;
+      members.forEach(e=>{
+        html += `<div class="org-node-wrap">
+          <div style="width:1.5px;height:16px;background:#CFD8DC;margin:0 auto"></div>
+          ${orgCardHTML(e)}
+        </div>`;
+      });
+      html += `</div></div>`;
+    });
+    html += `</div>`;
+  }
+
+  if(!owners.length && !level2.length && !deptHeads.length && !employees.length){
+    html += `<div style="text-align:center;color:#B0BEC5;padding:40px;font-size:12px">ไม่มีข้อมูล</div>`;
+  }
+
+  html += `</div>`;
+  canvas.innerHTML = html;
+}
 
 // ============================================================
 // PERMISSION MANAGER (Owner Only)
