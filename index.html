@@ -451,7 +451,7 @@ input[type=file]{display:none}
     </div>
   </div>
 
-  <div class="login-version">Flow HR v3.50 · © 2026 Flow Engineering and Service Co.,Ltd.</div>
+  <div class="login-version">Flow HR v3.51 · © 2026 Flow Engineering and Service Co.,Ltd.</div>
 </div>
 
 <!-- ============ DESKTOP ============ -->
@@ -1261,6 +1261,12 @@ input[type=file]{display:none}
           <option value="false">ไม่ขึ้นสิทธิ์</option>
         </select>
       </div>
+      <div class="f-group"><label class="f-lbl">สิทธิ์รับเบี้ยขยัน</label>
+        <select class="f-inp f-sel" id="nf-diligence">
+          <option value="true">ได้รับเบี้ยขยัน</option>
+          <option value="false">ไม่ได้รับ</option>
+        </select>
+      </div>
     </div>
 
     <!-- TAB: ติดต่อ -->
@@ -1899,6 +1905,7 @@ function openEditEmp(id){
   set('nf-bank-branch',e.bank_branch);
   set('nf-bank-type',  e.bank_type||'savings');
   set('nf-sso',        e.sso_eligible!==false?'true':'false');
+  set('nf-diligence',  e.diligence_eligible!==false?'true':'false');
   set('nf-phone',      e.phone);
   set('nf-email',      e.email);
   set('nf-line',       e.line_id);
@@ -2016,7 +2023,8 @@ async function saveEmp(){
     bank_account:   g('nf-bank-account'),
     bank_branch:    g('nf-bank-branch'),
     bank_type:      g('nf-bank-type') || 'savings',
-    sso_eligible:   g('nf-sso') !== 'false',
+    sso_eligible:        g('nf-sso') !== 'false',
+    diligence_eligible:  g('nf-diligence') !== 'false',
     phone:          g('nf-phone'),
     email:          g('nf-email'),
     line_id:        g('nf-line'),
