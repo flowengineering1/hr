@@ -451,7 +451,7 @@ input[type=file]{display:none}
     </div>
   </div>
 
-  <div class="login-version">Flow HR v3.37 · © 2026 Flow Engineering and Service Co.,Ltd.</div>
+  <div class="login-version">Flow HR v3.38 · © 2026 Flow Engineering and Service Co.,Ltd.</div>
 </div>
 
 <!-- ============ DESKTOP ============ -->
@@ -841,7 +841,7 @@ input[type=file]{display:none}
           <div class="card">
             <div class="card-hdr" style="margin-bottom:14px">
               <div class="card-hdr-l"><i class="ti ti-calendar-event" aria-hidden="true"></i>วันหยุดบริษัท</div>
-              <button class="btn-p" style="padding:7px 14px;font-size:12px" onclick="showSh('sh-add-holiday')">
+              <button class="btn-p" style="padding:7px 14px;font-size:12px" onclick="openAddHoliday()">
                 <i class="ti ti-plus" aria-hidden="true"></i>เพิ่มวันหยุด
               </button>
             </div>
@@ -2377,6 +2377,9 @@ function renderHolidays(){
 }
 
 // เปิดฟอร์มเพิ่มวันหยุด
+function openAddHoliday(){
+  showAddHoliday();
+}
 function showAddHoliday(){
   document.getElementById('hol-edit-id').value = '';
   document.getElementById('sh-holiday-title').textContent = 'เพิ่มวันหยุดบริษัท';
@@ -2384,7 +2387,9 @@ function showAddHoliday(){
   document.getElementById('hol-name').value = '';
   document.getElementById('hol-note').value = '';
   document.getElementById('hol-type').value = 'company';
-  showSh('sh-add-holiday');
+  // เปิด sheet ตรงๆ (ไม่ผ่าน showSh เพราะ id ไม่ต้องเติม sh-)
+  const el = document.getElementById('sh-add-holiday');
+  if(el) el.classList.add('show');
 }
 
 // แก้ไขวันหยุด
@@ -2396,7 +2401,15 @@ function editHoliday(id){
   document.getElementById('hol-name').value = h.name||'';
   document.getElementById('hol-note').value = h.note||'';
   document.getElementById('hol-type').value = h.type||'company';
-  showSh('sh-add-holiday');
+  const el2 = document.getElementById('sh-add-holiday');
+  if(el2) el2.classList.add('show');
+}
+
+function closeHolidaySheet(e){
+  const el = document.getElementById('sh-add-holiday');
+  if(!el) return;
+  if(e && e.target !== el) return;
+  el.classList.remove('show');
 }
 
 // บันทึกวันหยุด (เพิ่ม/แก้ไข)
@@ -2428,7 +2441,7 @@ async function saveHoliday(){
 
   if(error){ showToast('เกิดข้อผิดพลาด: '+error.message); return; }
   showToast((editId?'แก้ไข':'เพิ่ม')+' วันหยุด '+name+' สำเร็จ ✅');
-  closeSh('sh-add-holiday');
+  closeHolidaySheet();
   await loadHolidays();
 }
 
@@ -3796,12 +3809,12 @@ async function savePermissions(){
 </div>
 
 <!-- ==================== ADD COMPANY HOLIDAY SHEET ==================== -->
-<div class="sh-bg" id="sh-add-holiday" onclick="closeSh('sh-add-holiday',event)">
+<div class="sh-bg" id="sh-add-holiday" onclick="closeHolidaySheet(event)">
   <div class="sh">
     <div class="sh-handle"></div>
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
       <div class="sh-title" style="margin:0" id="sh-holiday-title">เพิ่มวันหยุดบริษัท</div>
-      <button onclick="closeSh('sh-add-holiday')" style="background:none;border:none;cursor:pointer;color:#9E9E9E;font-size:22px"><i class="ti ti-x"></i></button>
+      <button onclick="closeHolidaySheet()" style="background:none;border:none;cursor:pointer;color:#9E9E9E;font-size:22px"><i class="ti ti-x"></i></button>
     </div>
 
     <div class="f-group">
@@ -3828,7 +3841,7 @@ async function savePermissions(){
     <button class="btn-fw" onclick="saveHoliday()">
       <i class="ti ti-calendar-plus" aria-hidden="true"></i>บันทึกวันหยุด
     </button>
-    <button class="btn-fwo" onclick="closeSh('sh-add-holiday')">ยกเลิก</button>
+    <button class="btn-fwo" onclick="closeHolidaySheet()">ยกเลิก</button>
   </div>
 </div>
 
