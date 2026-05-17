@@ -301,8 +301,8 @@ input[type=file]{display:none}
 
 
 /* ===== CONFIRM DIALOG ===== */
-.confirm-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:500;align-items:center;justify-content:center;padding:24px}
-.confirm-bg.show{display:flex;animation:fu .2s ease}
+.confirm-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;align-items:center;justify-content:center;padding:24px}
+.confirm-bg.show{display:flex}
 .confirm-box{background:#fff;border-radius:20px;padding:24px;width:100%;max-width:360px;box-shadow:0 20px 60px rgba(0,0,0,.3)}
 .confirm-icon{width:56px;height:56px;border-radius:16px;display:flex;align-items:center;justify-content:center;font-size:26px;margin:0 auto 14px}
 .confirm-title{font-size:17px;font-weight:700;text-align:center;margin-bottom:8px;color:#0F1923}
@@ -451,7 +451,7 @@ input[type=file]{display:none}
     </div>
   </div>
 
-  <div class="login-version">Flow HR v3.38 · © 2026 Flow Engineering and Service Co.,Ltd.</div>
+  <div class="login-version">Flow HR v3.40 · © 2026 Flow Engineering and Service Co.,Ltd.</div>
 </div>
 
 <!-- ============ DESKTOP ============ -->
@@ -2468,11 +2468,13 @@ async function deleteHoliday(id, name){
 let _confirmCallback = null;
 
 function showConfirm({ icon, iconBg, iconColor, title, msg, okText, okColor, onOk }){
+  console.log('[showConfirm] called, title:', title, 'onOk:', typeof onOk);
   const iconEl   = document.getElementById('confirm-icon');
   const titleEl  = document.getElementById('confirm-title');
   const msgEl    = document.getElementById('confirm-msg');
   const okBtn    = document.getElementById('confirm-ok-btn');
   const dialog   = document.getElementById('confirm-dialog');
+  console.log('[showConfirm] elements:', {iconEl:!!iconEl, titleEl:!!titleEl, okBtn:!!okBtn, dialog:!!dialog});
 
   if(iconEl){
     iconEl.textContent = icon||'❓';
@@ -3884,6 +3886,7 @@ async function savePermissions(){
 </div>
 
 <!-- ==================== CONFIRM DIALOG ==================== -->
+
 <div class="confirm-bg" id="confirm-dialog">
   <div class="confirm-box">
     <div class="confirm-icon" id="confirm-icon">✅</div>
