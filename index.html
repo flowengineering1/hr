@@ -300,6 +300,36 @@ html,body{
 input[type=file]{display:none}
 
 
+/* ===== HBD BANNER ===== */
+.hbd-banner{
+  background:linear-gradient(135deg,#1252A3 0%,#6D28D9 50%,#BE185D 100%);
+  border-radius:18px;padding:20px 24px;margin-bottom:16px;
+  display:flex;align-items:center;gap:16px;
+  animation:hbdPulse 3s ease infinite;
+  position:relative;overflow:hidden;
+}
+.hbd-banner::before{
+  content:'🎉';font-size:60px;position:absolute;right:16px;top:50%;
+  transform:translateY(-50%);opacity:.2;
+}
+@keyframes hbdPulse{
+  0%,100%{box-shadow:0 4px 20px rgba(18,82,163,.4)}
+  50%{box-shadow:0 8px 32px rgba(109,40,217,.5)}
+}
+.hbd-confetti{position:absolute;top:0;left:0;right:0;bottom:0;overflow:hidden;pointer-events:none}
+.hbd-confetti span{
+  position:absolute;width:8px;height:8px;border-radius:50%;
+  animation:confettiFall linear infinite;
+}
+@keyframes confettiFall{
+  0%{transform:translateY(-20px) rotate(0deg);opacity:1}
+  100%{transform:translateY(120px) rotate(360deg);opacity:0}
+}
+.hbd-txt-main{font-size:28px;font-weight:900;color:#fff;letter-spacing:-.02em;line-height:1}
+.hbd-txt-sub{font-size:14px;color:rgba(255,255,255,.85);margin-top:6px;font-weight:500}
+.hbd-av{width:60px;height:60px;border-radius:50%;border:3px solid rgba(255,255,255,.5);flex-shrink:0;overflow:hidden;background:rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:700;color:#fff}
+.hbd-av img{width:100%;height:100%;object-fit:cover}
+
 /* ===== CONFIRM DIALOG ===== */
 .confirm-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;align-items:center;justify-content:center;padding:24px}
 .confirm-bg.show{display:flex}
@@ -451,7 +481,7 @@ input[type=file]{display:none}
     </div>
   </div>
 
-  <div class="login-version">Flow HR v3.73 · © 2026 Flow Engineering and Service Co.,Ltd.</div>
+  <div class="login-version">Flow HR v3.74 · © 2026 Flow Engineering and Service Co.,Ltd.</div>
 </div>
 
 <!-- ============ DESKTOP ============ -->
@@ -519,6 +549,7 @@ input[type=file]{display:none}
 
       <!-- DASHBOARD -->
       <div id="dp-dashboard" class="page show">
+        <div id="d-hbd-banner"></div>
         <div class="kpi-grid kpi-d" id="d-kpi"></div>
         <div class="g2">
           <div>
@@ -1516,6 +1547,7 @@ async function loadLeaves(){
 // ============================================================
 function renderAll(){
   renderKPI();
+  renderHBDBanner();
   renderBdayTabs();renderBdayList(bdayM,'d');renderBdayList(CUR_M,'m');
   renderBars('d-dept-bars',cntBy('department'));renderBars('d-tenure-bars',cntTenure());
   renderBars('m-dept-bars',cntBy('department'));
