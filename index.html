@@ -1353,22 +1353,35 @@ async function loadLeaves(){
     .select('*, employees(id,name,department,photo_url,first_name,last_name)')
     .order('start_date');
 
+  const role = currentUser?.role;
+  const uid  = currentUser?.id;
+
+  console.log('[loadLeaves] role:', role, 'uid:', uid);
+  console.log('[loadLeaves] can leave_view_all:', can('leave_view_all'));
+
   if(can('leave_view_all')){
     // owner, hr_manager, accountant — เห็นทุกคน
+    console.log('[loadLeaves] query: all');
   } else if(can('leave_view_dept') && isDeptHead()){
-    // dept_head — เห็นเฉพาะแผนกตัวเอง (filter หลัง fetch)
+    // dept_head
+    console.log('[loadLeaves] query: dept');
   } else {
     // employee — เห็นแค่ของตัวเอง
-    query = query.eq('employee_id', currentUser.id);
+    console.log('[loadLeaves] query: employee_id =', uid);
+    query = query.eq('employee_id', uid);
   }
-  const{data}=await query;
 
-  // dept_head: filter เฉพาะ dept ตัวเอง
+  const{data, error} = await query;
+  console.log('[loadLeaves] result:', data?.length, 'rows, error:', error?.message);
+  if(data) data.forEach(l => console.log('  leave:', l.id, l.status, l.employee_id));
+
   let filtered = data||[];
   if(isDeptHead() && !can('leave_view_all')){
-    filtered = filtered.filter(l=> l.employees?.department === myDept() || l.employee_id === currentUser.id);
+    filtered = filtered.filter(l=> l.employees?.department === myDept() || l.employee_id === uid);
   }
-  leaves=filtered; renderLeaveAll();
+  leaves=filtered;
+  console.log('[loadLeaves] filtered:', filtered.length);
+  renderLeaveAll();
 }
 
 // ============================================================
