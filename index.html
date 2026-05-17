@@ -451,7 +451,7 @@ input[type=file]{display:none}
     </div>
   </div>
 
-  <div class="login-version">Flow HR v3.45 · © 2026 Flow Engineering and Service Co.,Ltd.</div>
+  <div class="login-version">Flow HR v3.50 · © 2026 Flow Engineering and Service Co.,Ltd.</div>
 </div>
 
 <!-- ============ DESKTOP ============ -->
@@ -470,6 +470,7 @@ input[type=file]{display:none}
       <div class="nav-grp">พนักงาน</div>
       <div class="nav-item" onclick="goD('employees')"><i class="ti ti-users" aria-hidden="true"></i>ข้อมูลพนักงาน</div>
       <div class="nav-item" onclick="goD('checkin')"><i class="ti ti-clock" aria-hidden="true"></i>เช็คอิน / เวลา</div>
+      <div class="nav-item" onclick="goD('attendance')"><i class="ti ti-calendar-stats" aria-hidden="true"></i>รายงานการเข้างาน</div>
       <div class="nav-item" onclick="goD('leave')"><i class="ti ti-beach" aria-hidden="true"></i>การลา<span class="nav-badge" id="d-leave-badge" style="display:none">0</span></div>
       <div class="nav-item" onclick="goD('ot')"><i class="ti ti-clock-bolt" aria-hidden="true"></i>OT<span class="nav-badge" id="d-ot-badge" style="display:none">0</span></div>
       <div class="nav-grp">การเงิน</div>
@@ -617,6 +618,92 @@ input[type=file]{display:none}
             </div>
           </div>
           <div class="card"><div class="card-hdr"><div class="card-hdr-l"><i class="ti ti-list" aria-hidden="true"></i>บันทึกทีมวันนี้</div></div><div id="d-team-attend"></div></div>
+        </div>
+      </div>
+
+      <!-- ATTENDANCE DASHBOARD -->
+      <div id="dp-attendance" class="page">
+        <!-- Header bar -->
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap">
+          <div style="flex:1;font-size:13px;color:#6B7280">
+            วันที่ <b id="att-date-label" style="color:#0F1923"></b>
+          </div>
+          <input type="date" class="f-inp" id="att-date-pick" style="width:160px"
+            onchange="loadAttendDashboard()">
+          <button class="btn-o" onclick="loadAttendDashboard()">
+            <i class="ti ti-refresh" aria-hidden="true"></i>รีเฟรช
+          </button>
+        </div>
+
+        <!-- KPI row -->
+        <div class="kpi-grid kpi-d" id="att-kpi" style="grid-template-columns:repeat(4,1fr);margin-bottom:14px"></div>
+
+        <!-- 3 sections -->
+        <div class="g3" style="grid-template-columns:1fr 1fr 1fr">
+          <!-- มาทำงาน -->
+          <div class="card">
+            <div class="card-hdr">
+              <div class="card-hdr-l">
+                <i class="ti ti-check" aria-hidden="true" style="color:#065F46"></i>
+                มาทำงาน
+              </div>
+              <span class="badge b-green" id="att-present-cnt">0</span>
+            </div>
+            <div id="att-present-list"></div>
+          </div>
+
+          <!-- มาสาย -->
+          <div class="card">
+            <div class="card-hdr">
+              <div class="card-hdr-l">
+                <i class="ti ti-clock-exclamation" aria-hidden="true" style="color:#9A3412"></i>
+                มาสาย
+              </div>
+              <span class="badge b-orange" id="att-late-cnt">0</span>
+            </div>
+            <div id="att-late-list"></div>
+          </div>
+
+          <!-- ยังไม่เช็คอิน / ลืม scan ออก -->
+          <div class="card">
+            <div class="card-hdr">
+              <div class="card-hdr-l">
+                <i class="ti ti-user-question" aria-hidden="true" style="color:#991B1B"></i>
+                ยังไม่เช็คอิน
+              </div>
+              <span class="badge b-red" id="att-absent-cnt">0</span>
+            </div>
+            <div id="att-absent-list"></div>
+            <!-- ลืม scan ออก -->
+            <div style="margin-top:12px;padding-top:12px;border-top:1px solid #F1F5F9">
+              <div style="font-size:11px;font-weight:700;color:#6B7280;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px;display:flex;align-items:center;gap:6px">
+                <i class="ti ti-door-exit" aria-hidden="true"></i>
+                ลืม scan ออก
+              </div>
+              <div id="att-no-checkout-list"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ตารางรายละเอียด -->
+        <div class="card" style="padding:0;overflow:hidden">
+          <div style="padding:14px;border-bottom:1px solid var(--border-light);display:flex;align-items:center;justify-content:space-between">
+            <div style="font-size:13px;font-weight:700">รายละเอียดการเช็คอิน</div>
+            <button class="btn-o" onclick="exportAttendCSV()" style="padding:6px 12px;font-size:11px">
+              <i class="ti ti-download" aria-hidden="true"></i>Export CSV
+            </button>
+          </div>
+          <table class="emp-table">
+            <thead><tr>
+              <th>พนักงาน</th>
+              <th>เวลาเข้า</th>
+              <th>เวลาออก</th>
+              <th>ชั่วโมง</th>
+              <th>สถานะ</th>
+              <th>หักสาย</th>
+            </tr></thead>
+            <tbody id="att-table-body"></tbody>
+          </table>
         </div>
       </div>
 
@@ -1339,6 +1426,7 @@ function goD(p){
   document.getElementById('d-title').textContent=t[p]||p;
   document.getElementById('d-content').scrollTo(0,0);
   if(p==='checkin'){initCI('d');loadTeamAttend();}
+  if(p==='attendance'){loadAttendDashboard();}
   if(p==='payroll'){initPRSelects();renderPayrollTable();}
   if(p==='payslip'){initPSSelects('d');renderDPS();}
   if(p==='offices')renderOfficesList();
@@ -2276,6 +2364,203 @@ if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(
 
 
 
+
+
+// ============================================================
+// ATTENDANCE DASHBOARD
+// ============================================================
+let attendRecords = [];   // เช็คอินวันที่เลือก
+let attendDate    = '';   // วันที่กำลังดู
+
+async function loadAttendDashboard(){
+  // ตั้งค่าวันที่
+  const picker = document.getElementById('att-date-pick');
+  if(!attendDate){
+    attendDate = todayS();
+    if(picker) picker.value = attendDate;
+  } else {
+    attendDate = picker?.value || todayS();
+  }
+
+  const lbl = document.getElementById('att-date-label');
+  if(lbl){
+    const d = new Date(attendDate);
+    lbl.textContent = d.toLocaleDateString('th-TH',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+  }
+
+  // ดึง attendance วันนี้ + join employees
+  const{data: attData} = await db.from('attendances')
+    .select('*, employees(id,name,first_name,last_name,nickname,department,photo_url,salary_type)')
+    .gte('check_in', attendDate+'T00:00:00')
+    .lte('check_in', attendDate+'T23:59:59')
+    .order('check_in');
+
+  attendRecords = attData || [];
+
+  // ดึงเวลาเข้างาน จาก settings
+  const{data: ws} = await db.from('work_settings').select('work_start,late_after_mins,late_deduct_per_min').limit(1);
+  const workStart     = ws?.[0]?.work_start || '08:00';
+  const lateAfterMins = ws?.[0]?.late_after_mins || 0;
+  const lateDeduct    = ws?.[0]?.late_deduct_per_min || 1;
+
+  renderAttendDashboard(workStart, lateAfterMins, lateDeduct);
+}
+
+function renderAttendDashboard(workStart, lateAfterMins, lateDeduct){
+  const [wh, wm] = workStart.split(':').map(Number);
+  const workStartMins = wh*60 + wm + lateAfterMins;
+
+  // แยกกลุ่ม
+  const present        = [];
+  const late           = [];
+  const noCheckout     = [];
+  const checkedInIds   = new Set();
+
+  attendRecords.forEach(r => {
+    const e = r.employees || {};
+    if(!e.id) return;
+    checkedInIds.add(e.id);
+
+    // คำนวณสาย
+    const ci = new Date(r.check_in);
+    const ciMins = ci.getHours()*60 + ci.getMinutes();
+    const lateMin = Math.max(0, ciMins - workStartMins);
+
+    const row = {
+      ...r, emp: e,
+      lateMin,
+      lateDeductAmt: Math.round(lateMin * lateDeduct),
+      ciTime: ci.toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'}),
+      coTime: r.check_out ? new Date(r.check_out).toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'}) : null,
+      hours: r.check_out ? Math.round((new Date(r.check_out)-new Date(r.check_in))/36000)/100 : null,
+    };
+
+    if(lateMin > 0) late.push(row);
+    else present.push(row);
+    if(!r.check_out) noCheckout.push(row);
+  });
+
+  // พนักงานที่ยังไม่เช็คอิน
+  const isWeekend = [0,6].includes(new Date(attendDate).getDay());
+  const absent = emps.filter(e =>
+    !checkedInIds.has(e.id) &&
+    e.is_active &&
+    e.salary_type !== 'daily'  // รายวันไม่บังคับ
+  );
+
+  // KPI
+  const kpiEl = document.getElementById('att-kpi');
+  if(kpiEl) kpiEl.innerHTML = [
+    {ico:'ti-users',        bg:'#DBEAFE', col:'#1D4ED8', num: emps.filter(e=>e.is_active).length, lbl:'พนักงานทั้งหมด'},
+    {ico:'ti-check',        bg:'#D1FAE5', col:'#065F46', num: present.length+late.length,          lbl:'มาทำงาน'},
+    {ico:'ti-clock-exclamation',bg:'#FFEDD5',col:'#9A3412', num: late.length,                     lbl:'มาสาย'},
+    {ico:'ti-user-off',     bg:'#FEE2E2', col:'#991B1B', num: absent.length,                      lbl:'ยังไม่เช็คอิน'},
+  ].map(k=>`
+    <div class="kpi-tile">
+      <div class="kpi-ico" style="background:${k.bg}"><i class="ti ${k.ico}" style="color:${k.col}" aria-hidden="true"></i></div>
+      <div><div class="kpi-num">${k.num}</div><div class="kpi-lbl">${k.lbl}</div></div>
+    </div>`).join('');
+
+  // helper card row
+  const empRow = (row, showLate=false) => {
+    const e = row.emp;
+    const name = (e.first_name||e.name||'—') + (e.last_name?' '+e.last_name:'');
+    const avBg = DEPT_BG[e.department]||'#E3F2FD';
+    const avCol= DEPT_COL[e.department]||'#1565C0';
+    const avEl = e.photo_url
+      ? `<img src="${e.photo_url}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`
+      : `<div class="ini" style="color:${avCol};font-size:11px;font-weight:700">${ini(name)}</div>`;
+    return `
+    <div style="display:flex;align-items:center;gap:9px;padding:8px 0;border-bottom:.5px solid #F1F5F9">
+      <div class="av" style="width:32px;height:32px;background:${avBg};flex-shrink:0">${avEl}</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${name}</div>
+        <div style="font-size:10px;color:#6B7280">
+          ${row.ciTime} ${row.coTime?'→ '+row.coTime:''}
+          ${showLate && row.lateMin>0 ? `<span style="color:#9A3412;font-weight:600"> · สาย ${row.lateMin} นาที${row.lateDeductAmt>0?' (-฿'+row.lateDeductAmt+')':''}</span>` : ''}
+        </div>
+      </div>
+    </div>`;
+  };
+
+  const absentRow = (e) => {
+    const name = (e.first_name||e.name||'—') + (e.last_name?' '+e.last_name:'');
+    const avBg = DEPT_BG[e.department]||'#FEE2E2';
+    return `
+    <div style="display:flex;align-items:center;gap:9px;padding:8px 0;border-bottom:.5px solid #F1F5F9">
+      <div class="av" style="width:32px;height:32px;background:${avBg};flex-shrink:0;opacity:.6">
+        <div class="ini" style="color:#991B1B;font-size:11px;font-weight:700">${ini(name)}</div>
+      </div>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:12px;font-weight:600;color:#991B1B;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${name}</div>
+        <div style="font-size:10px;color:#9CA3AF">${e.department||'—'}</div>
+      </div>
+      <span style="font-size:9px;background:#FEE2E2;color:#991B1B;padding:2px 7px;border-radius:10px;font-weight:700;flex-shrink:0">ไม่มา</span>
+    </div>`;
+  };
+
+  // Render lists
+  const noData = '<div style="text-align:center;color:#B0BEC5;padding:16px;font-size:11px">ไม่มีรายการ</div>';
+
+  const setEl = (id, html) => { const el=document.getElementById(id); if(el) el.innerHTML = html||noData; };
+  const setCnt= (id, n)    => { const el=document.getElementById(id); if(el) el.textContent = n; };
+
+  setEl('att-present-list',     present.length  ? present.map(r=>empRow(r)).join('')     : null);
+  setEl('att-late-list',        late.length     ? late.map(r=>empRow(r,true)).join('')   : null);
+  setEl('att-absent-list',      absent.length   ? absent.map(e=>absentRow(e)).join('')   : null);
+  setEl('att-no-checkout-list', noCheckout.length ? noCheckout.map(r=>empRow(r)).join('') : null);
+
+  setCnt('att-present-cnt', present.length+late.length);
+  setCnt('att-late-cnt',    late.length);
+  setCnt('att-absent-cnt',  absent.length);
+
+  // ตาราง
+  const tbody = document.getElementById('att-table-body');
+  if(tbody){
+    const allRows = [...present,...late].sort((a,b)=>new Date(a.check_in)-new Date(b.check_in));
+    tbody.innerHTML = allRows.length ? allRows.map(r => {
+      const name = (r.emp.first_name||r.emp.name||'—')+(r.emp.last_name?' '+r.emp.last_name:'');
+      const statusBadge = r.lateMin > 0
+        ? `<span class="badge b-orange">สาย ${r.lateMin} นาที</span>`
+        : `<span class="badge b-green">ตรงเวลา</span>`;
+      const noCoBadge = !r.check_out
+        ? `<span class="badge b-red" style="margin-left:4px">ลืม scan ออก</span>` : '';
+      return `<tr>
+        <td><div style="font-weight:500">${name}</div><div style="font-size:11px;color:#9CA3AF">${r.emp.department||'—'}</div></td>
+        <td style="font-weight:600;color:${r.lateMin>0?'#9A3412':'#065F46'}">${r.ciTime}</td>
+        <td style="color:${r.check_out?'#374151':'#9CA3AF'}">${r.coTime||'—'}</td>
+        <td>${r.hours != null ? r.hours+' ชม.' : '—'}</td>
+        <td>${statusBadge}${noCoBadge}</td>
+        <td style="color:${r.lateDeductAmt>0?'#9A3412':'#9CA3AF'};font-weight:${r.lateDeductAmt>0?'600':'400'}">
+          ${r.lateDeductAmt>0?'-฿'+r.lateDeductAmt:'—'}
+        </td>
+      </tr>`;
+    }).join('') : `<tr><td colspan="6" style="text-align:center;color:#B0BEC5;padding:24px">ไม่มีข้อมูลวันนี้</td></tr>`;
+  }
+}
+
+// Export CSV
+function exportAttendCSV(){
+  const rows = [['ชื่อ','แผนก','เวลาเข้า','เวลาออก','ชั่วโมง','สาย(นาที)','หักสาย(บาท)']];
+  attendRecords.forEach(r => {
+    const e = r.employees||{};
+    const ci = new Date(r.check_in);
+    const co = r.check_out ? new Date(r.check_out) : null;
+    const hrs = co ? Math.round((co-ci)/36000)/100 : '';
+    rows.push([
+      (e.first_name||e.name||'')+(e.last_name?' '+e.last_name:''),
+      e.department||'',
+      ci.toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'}),
+      co ? co.toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'}) : '',
+      hrs, '', ''
+    ]);
+  });
+  const csv = rows.map(r=>r.join(',')).join('\n');
+  const a = document.createElement('a');
+  a.href = 'data:text/csv;charset=utf-8,\uFEFF'+encodeURIComponent(csv);
+  a.download = 'attendance_'+attendDate+'.csv';
+  a.click();
+}
 
 // ============================================================
 // COMPANY HOLIDAYS
