@@ -481,7 +481,7 @@ input[type=file]{display:none}
     </div>
   </div>
 
-  <div class="login-version">Flow HR v3.74 · © 2026 Flow Engineering and Service Co.,Ltd.</div>
+  <div class="login-version">Flow HR v3.75 · © 2026 Flow Engineering and Service Co.,Ltd.</div>
 </div>
 
 <!-- ============ DESKTOP ============ -->
@@ -1545,6 +1545,88 @@ async function loadLeaves(){
 // ============================================================
 // RENDER ALL
 // ============================================================
+
+
+// ============================================================
+// TENURE & AGE BARS
+// ============================================================
+function renderTenureBars(){
+  const el = document.getElementById('d-tenure-bars');
+  if(!el) return;
+  const today = new Date();
+  const brackets = [
+    {label:'ต่ำกว่า 1 ปี', min:0,   max:11,  color:'#60A5FA'},
+    {label:'1 – 2 ปี',     min:12,  max:23,  color:'#34D399'},
+    {label:'3 – 5 ปี',     min:36,  max:59,  color:'#FBBF24'},
+    {label:'5 – 10 ปี',    min:60,  max:119, color:'#F87171'},
+    {label:'10 ปีขึ้นไป',  min:120, max:9999,color:'#A78BFA'},
+  ];
+  const tenures = emps.filter(e=>e.start_date&&e.is_active).map(e=>{
+    const s=new Date(e.start_date);
+    return (today.getFullYear()-s.getFullYear())*12+(today.getMonth()-s.getMonth());
+  });
+  if(!tenures.length){el.innerHTML='<div style="text-align:center;color:#B0BEC5;padding:16px;font-size:12px">ไม่มีข้อมูล</div>';return;}
+  const total=tenures.length;
+  let h='';
+  brackets.forEach(b=>{
+    const count=tenures.filter(t=>t>=b.min&&t<=b.max).length;
+    if(!count) return;
+    const pct=Math.round(count/total*100);
+    h+=`<div class="bar-row">
+      <div class="bar-lbl" style="width:90px">${b.label}</div>
+      <div class="bar-track"><div class="bar-fill" style="width:${pct}%;background:${b.color}"><span>${count} คน</span></div></div>
+      <div style="font-size:11px;color:#9CA3AF;width:32px;text-align:right;flex-shrink:0">${pct}%</div>
+    </div>`;
+  });
+  el.innerHTML=h||'<div style="text-align:center;color:#B0BEC5;padding:16px;font-size:12px">ไม่มีข้อมูล</div>';
+}
+
+function renderAgeBars(){
+  const el = document.getElementById('d-age-bars');
+  if(!el) return;
+  const today = new Date();
+  const brackets = [
+    {label:'ต่ำกว่า 25 ปี', min:0,  max:24,  color:'#60A5FA'},
+    {label:'25 – 30 ปี',    min:25, max:30,  color:'#34D399'},
+    {label:'31 – 35 ปี',    min:31, max:35,  color:'#FBBF24'},
+    {label:'36 – 40 ปี',    min:36, max:40,  color:'#F87171'},
+    {label:'41 – 50 ปี',    min:41, max:50,  color:'#A78BFA'},
+    {label:'51 ปีขึ้นไป',   min:51, max:999, color:'#FB923C'},
+  ];
+  const ages = emps.filter(e=>e.date_of_birth&&e.is_active).map(e=>{
+    const d=new Date(e.date_of_birth);
+    return today.getFullYear()-d.getFullYear()-(today<new Date(today.getFullYear(),d.getMonth(),d.getDate())?1:0);
+  });
+  if(!ages.length){el.innerHTML='<div style="text-align:center;color:#B0BEC5;padding:16px;font-size:12px">ไม่มีข้อมูลวันเกิด</div>';return;}
+  const total=ages.length;
+  const avg=Math.round(ages.reduce((s,a)=>s+a,0)/total);
+  const mn=Math.min(...ages), mx=Math.max(...ages);
+  let h=`<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px">
+    <div style="background:#F1F5F9;border-radius:10px;padding:10px;text-align:center">
+      <div style="font-size:20px;font-weight:700;color:#1252A3">${avg}</div>
+      <div style="font-size:10px;color:#6B7280;margin-top:2px">อายุเฉลี่ย</div>
+    </div>
+    <div style="background:#F1F5F9;border-radius:10px;padding:10px;text-align:center">
+      <div style="font-size:20px;font-weight:700;color:#065F46">${mn}</div>
+      <div style="font-size:10px;color:#6B7280;margin-top:2px">น้อยสุด</div>
+    </div>
+    <div style="background:#F1F5F9;border-radius:10px;padding:10px;text-align:center">
+      <div style="font-size:20px;font-weight:700;color:#9A3412">${mx}</div>
+      <div style="font-size:10px;color:#6B7280;margin-top:2px">มากสุด</div>
+    </div>
+  </div>`;
+  brackets.forEach(b=>{
+    const count=ages.filter(a=>a>=b.min&&a<=b.max).length;
+    if(!count) return;
+    const pct=Math.round(count/total*100);
+    h+=`<div class="bar-row">
+      <div class="bar-lbl" style="width:90px">${b.label}</div>
+      <div class="bar-track"><div class="bar-fill" style="width:${pct}%;background:${b.color}"><span>${count} คน</span></div></div>
+      <div style="font-size:11px;color:#9CA3AF;width:32px;text-align:right;flex-shrink:0">${pct}%</div>
+    </div>`;
+  });
+  el.innerHTML=h;
+}
 
 // ============================================================
 // HBD BANNER
