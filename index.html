@@ -451,7 +451,7 @@ input[type=file]{display:none}
     </div>
   </div>
 
-  <div class="login-version">Flow HR v3.65 · © 2026 Flow Engineering and Service Co.,Ltd.</div>
+  <div class="login-version">Flow HR v3.67 · © 2026 Flow Engineering and Service Co.,Ltd.</div>
 </div>
 
 <!-- ============ DESKTOP ============ -->
@@ -1606,23 +1606,71 @@ function renderLeaveAll(){
 
 function lvRowHTML(l,showApprove=false){
   const e=l.employees||{};
-  // dept_head อนุมัติได้เฉพาะแผนกตัวเอง
+  const uid = currentUser?.id;
+
+  // อนุมัติ/ปฏิเสธ — approver เห็นของแผนกตัวเอง
   const canApprove = showApprove && can('leave_approve') &&
     (isHR() || (isDeptHead() && e.department === myDept()));
+
+  // ยกเลิก — เฉพาะเจ้าของใบลา และยังเป็น pending อยู่
+  const canCancel = l.status==='pending' && l.employee_id === uid;
+
   const bg=DEPT_BG[e.department]||'#E3F2FD',col=DEPT_COL[e.department]||'#1565C0';
-  const avEl=e.photo_url?`<img src="${e.photo_url}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`:`<div class="ini" style="font-size:12px;color:${col}">${ini(e.name||'?')}</div>`;
+  const avEl=e.photo_url
+    ? `<img src="${e.photo_url}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`
+    : `<div class="ini" style="font-size:12px;color:${col}">${ini(e.name||'?')}</div>`;
+
+  const typeLabel = {annual:'ลาพักร้อน',sick:'ลาป่วย',personal:'ลากิจ'}[l.type]||l.type;
+  const dateLabel = l.start_date===l.end_date ? l.start_date : l.start_date+' — '+l.end_date;
+  const statusBadge = {
+    approved: '<span class="badge b-green">อนุมัติแล้ว</span>',
+    rejected: '<span class="badge b-red">ปฏิเสธ</span>',
+    cancelled:'<span class="badge b-gray">ยกเลิกแล้ว</span>',
+    pending:  '<span class="badge b-orange">รออนุมัติ</span>',
+  }[l.status] || '<span class="badge b-gray">'+l.status+'</span>';
+
   return `<div class="lv-row">
     <div class="av" style="width:38px;height:38px;background:${bg};flex-shrink:0">${avEl}</div>
     <div class="lv-info">
-      <div class="lv-name">${e.name||'—'}</div>
-      <div class="lv-detail">${LV_LABEL[l.type]||l.type} · ${l.start_date===l.end_date?l.start_date:l.start_date+' — '+l.end_date}${l.days?' · '+l.days+' วัน':''}</div>
+      <div class="lv-name">${e.first_name||e.name||'—'} ${e.last_name||''}</div>
+      <div class="lv-detail">${typeLabel} · ${dateLabel}${l.days?' · '+l.days+' วัน':''}</div>
       ${l.reason?`<div style="font-size:10px;color:#B0BEC5;margin-top:2px">${l.reason}</div>`:''}
     </div>
     <div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end;flex-shrink:0">
-      <span class="badge ${l.status==='approved'?'b-green':l.status==='rejected'?'b-red':'b-orange'}">${l.status==='approved'?'อนุมัติ':l.status==='rejected'?'ปฏิเสธ':'รออนุมัติ'}</span>
-      ${canApprove&&l.status==='pending'?`<div style="display:flex;gap:4px"><button onclick="approveLv('${l.id}')" style="padding:3px 8px;background:var(--green-l);color:var(--green);border:none;border-radius:5px;font-size:11px;cursor:pointer;font-weight:600">อนุมัติ</button><button onclick="rejectLv('${l.id}')" style="padding:3px 8px;background:var(--red-l);color:var(--red);border:none;border-radius:5px;font-size:11px;cursor:pointer;font-weight:600">ปฏิเสธ</button></div>`:''}
+      ${statusBadge}
+      ${canApprove&&l.status==='pending'?`
+        <div style="display:flex;gap:4px">
+          <button data-id="${l.id}" onclick="approveLv(this.dataset.id)"
+            style="padding:3px 8px;background:var(--green-l);color:var(--green);border:none;border-radius:5px;font-size:11px;cursor:pointer;font-weight:600">
+            ✓ อนุมัติ
+          </button>
+          <button data-id="${l.id}" onclick="rejectLv(this.dataset.id)"
+            style="padding:3px 8px;background:var(--red-l);color:var(--red);border:none;border-radius:5px;font-size:11px;cursor:pointer;font-weight:600">
+            ✗ ปฏิเสธ
+          </button>
+        </div>`:''}
+      ${canCancel?`
+        <button data-id="${l.id}" data-type="${typeLabel}" onclick="cancelLeave(this.dataset.id,this.dataset.type)"
+          style="padding:3px 10px;background:#F3F4F6;color:#6B7280;border:1px solid #D1D5DB;border-radius:5px;font-size:11px;cursor:pointer;font-weight:500">
+          ✕ ยกเลิกใบลา
+        </button>`:''}
     </div>
   </div>`;
+}
+
+async function cancelLeave(id, typeLabel){
+  showConfirm({
+    icon: '↩️', iconBg: '#FEF3C7', iconColor: '#92400E',
+    title: 'ยกเลิกใบลา',
+    msg: `ต้องการยกเลิก<b>${typeLabel||'ใบลา'}</b>นี้ใช่ไหม?<br><span style="font-size:12px;color:#9CA3AF">ใบลาจะถูกยกเลิกทันที</span>`,
+    okText: 'ยืนยันยกเลิก', okColor: '#B45309',
+    onOk: async () => {
+      const{error} = await db.from('leaves').update({status:'cancelled'}).eq('id',id);
+      if(error){ showToast('เกิดข้อผิดพลาด: '+error.message); return; }
+      showToast('ยกเลิกใบลาแล้ว ✅');
+      await loadLeaves();
+    }
+  });
 }
 
 function renderLeaveToday(){
@@ -1633,12 +1681,49 @@ function renderLeaveToday(){
 }
 
 function renderLeavePend(){
-  const pend=leaves.filter(l=>l.status==='pending');
-  const app=leaves.filter(l=>l.status==='approved').slice(0,6);
-  const pc=document.getElementById('d-pend-cnt');if(pc)pc.textContent=pend.length;
-  const dp=document.getElementById('d-leave-pend');if(dp)dp.innerHTML=pend.length?pend.map(l=>lvRowHTML(l,true)).join(''):'<div style="text-align:center;color:#B0BEC5;padding:16px;font-size:12px">ไม่มีรายการ</div>';
-  const da=document.getElementById('d-leave-app');if(da)da.innerHTML=app.length?app.map(l=>lvRowHTML(l)).join(''):'<div style="text-align:center;color:#B0BEC5;padding:16px;font-size:12px">ไม่มีรายการ</div>';
-  const mp=document.getElementById('m-leave-pend');if(mp)mp.innerHTML=pend.length?pend.map(l=>lvRowHTML(l,true)).join(''):'<div style="text-align:center;color:#B0BEC5;padding:16px;font-size:12px">ไม่มีรายการ</div>';
+  const uid = currentUser?.id;
+  const isApprover = can('leave_approve'); // owner, hr_manager, dept_head
+
+  // pending — approver เห็นทุกคนในแผนก, employee เห็นแค่ตัวเอง
+  const pend = leaves.filter(l => l.status==='pending' && (
+    isApprover ? true : l.employee_id === uid
+  ));
+
+  // approved — approver เห็นทีม, employee เห็นแค่ตัวเอง
+  const app = leaves.filter(l => l.status==='approved' && (
+    isApprover ? true : l.employee_id === uid
+  )).slice(0,10);
+
+  // rejected — employee เห็นใบลาที่ถูกปฏิเสธของตัวเอง
+  const rej = leaves.filter(l => l.status==='rejected' && (
+    isApprover ? true : l.employee_id === uid
+  )).slice(0,5);
+
+  // update badge
+  const pc = document.getElementById('d-pend-cnt');
+  if(pc) pc.textContent = pend.length;
+
+  // update leave badge in nav
+  const nb = document.getElementById('d-leave-badge');
+  if(nb){ nb.textContent=pend.length; nb.style.display=pend.length>0?'':'none'; }
+  const mnb = document.getElementById('m-leave-badge');
+  if(mnb){ mnb.textContent=pend.length; mnb.style.display=pend.length>0?'':'none'; }
+
+  const noData = '<div style="text-align:center;color:#B0BEC5;padding:16px;font-size:12px">ไม่มีรายการ</div>';
+
+  // รออนุมัติ
+  const dp = document.getElementById('d-leave-pend');
+  if(dp) dp.innerHTML = pend.length ? pend.map(l=>lvRowHTML(l,true)).join('') : noData;
+
+  // อนุมัติแล้ว + ปฏิเสธ
+  const da = document.getElementById('d-leave-app');
+  if(da) da.innerHTML = (app.length||rej.length)
+    ? [...app.map(l=>lvRowHTML(l)), ...rej.map(l=>lvRowHTML(l))].join('')
+    : noData;
+
+  // mobile
+  const mp = document.getElementById('m-leave-pend');
+  if(mp) mp.innerHTML = pend.length ? pend.map(l=>lvRowHTML(l,true)).join('') : noData;
 }
 
 async function approveLv(id){
