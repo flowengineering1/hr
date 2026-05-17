@@ -451,7 +451,7 @@ input[type=file]{display:none}
     </div>
   </div>
 
-  <div class="login-version">Flow HR v3.71 · © 2026 Flow Engineering and Service Co.,Ltd.</div>
+  <div class="login-version">Flow HR v3.73 · © 2026 Flow Engineering and Service Co.,Ltd.</div>
 </div>
 
 <!-- ============ DESKTOP ============ -->
@@ -565,6 +565,7 @@ input[type=file]{display:none}
             <!-- กราฟ -->
             <div class="card"><div class="card-hdr"><div class="card-hdr-l"><i class="ti ti-building" aria-hidden="true"></i>แผนก</div></div><div id="d-dept-bars"></div></div>
             <div class="card"><div class="card-hdr"><div class="card-hdr-l"><i class="ti ti-clock-star" aria-hidden="true"></i>อายุงาน</div></div><div id="d-tenure-bars"></div></div>
+          <div class="card"><div class="card-hdr"><div class="card-hdr-l"><i class="ti ti-users-group" aria-hidden="true"></i>ช่วงอายุพนักงาน</div></div><div id="d-age-bars"></div></div>
           </div>
         </div>
       </div>
@@ -1518,6 +1519,8 @@ function renderAll(){
   renderBdayTabs();renderBdayList(bdayM,'d');renderBdayList(CUR_M,'m');
   renderBars('d-dept-bars',cntBy('department'));renderBars('d-tenure-bars',cntTenure());
   renderBars('m-dept-bars',cntBy('department'));
+  renderTenureBars();
+  renderAgeBars();
   renderEmpTable();renderEmpList();
   document.getElementById('d-emp-count').textContent=emps.length;
   initPRSelects();
@@ -1787,7 +1790,10 @@ async function submitLeave(){
 // BIRTHDAY
 // ============================================================
 function renderBdayTabs(){
-  const h=MTH.map((m,i)=>{const c=emps.filter(e=>e.date_of_birth&&new Date(e.date_of_birth).getMonth()===i).length;return`<div class="m-pill${i===bdayM?' act':''}" onclick="selBday(${i})">${m}${c?' '+c:''}</div>`;}).join('');
+  const h=MTH.map((m,i)=>{
+    const c=emps.filter(e=>e.date_of_birth&&new Date(e.date_of_birth).getMonth()===i).length;
+    return`<div class="m-pill${i===bdayM?' act':''}" onclick="selBday(${i})">${m}${c?' ('+c+')':''}</div>`;
+  }).join('');
   const el=document.getElementById('d-bday-tabs');if(el)el.innerHTML=h;
 }
 function selBday(m){bdayM=m;document.querySelectorAll('#d-bday-tabs .m-pill').forEach((e,i)=>e.classList.toggle('act',i===m));renderBdayList(m,'d');}
