@@ -407,7 +407,7 @@ input[type=file]{display:none}
     </div>
   </div>
 
-  <div class="login-version">Flow HR v3.04 · © 2026 Flow Engineering and Service Co.,Ltd.</div>
+  <div class="login-version">Flow HR v3.05 · © 2026 Flow Engineering and Service Co.,Ltd.</div>
 </div>
 
 <!-- ============ DESKTOP ============ -->
@@ -438,14 +438,18 @@ input[type=file]{display:none}
       <div class="nav-item" onclick="goD('settings')"><i class="ti ti-settings" aria-hidden="true"></i>ตั้งค่า</div>
     </div>
     <div class="sb-foot">
-      <div class="sb-user" onclick="goD('profile')">
+      <div class="sb-user" onclick="showChangePass()">
         <div class="sb-av" id="d-user-av">A</div>
         <div style="flex:1;min-width:0">
-          <div style="font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Admin</div>
-          <div style="font-size:11px;color:#9E9E9E">ผู้ดูแลระบบ</div>
+          <div style="font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" id="sb-user-name">—</div>
+          <div style="font-size:11px;color:#9E9E9E" id="sb-user-role">—</div>
         </div>
-        <i class="ti ti-chevron-right" style="color:#B0BEC5;font-size:16px" aria-hidden="true"></i>
+        <i class="ti ti-settings" style="color:#B0BEC5;font-size:16px" aria-hidden="true"></i>
       </div>
+      <button onclick="doLogout()" style="width:100%;margin-top:6px;padding:8px;border:1px solid #FFCDD2;border-radius:9px;background:#FFF5F5;color:#C62828;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:6px;transition:background .15s"
+        onmouseover="this.style.background='#FFEBEE'" onmouseout="this.style.background='#FFF5F5'">
+        <i class="ti ti-logout" aria-hidden="true"></i>ออกจากระบบ
+      </button>
     </div>
   </div>
 
@@ -719,7 +723,12 @@ input[type=file]{display:none}
   <div id="m-hdr">
     <img src="icons/icon-192.png" style="width:28px;height:28px;border-radius:6px;object-fit:cover" onerror="this.style.display='none'" alt="logo">
     <div class="mh-title" id="m-title">Flow HR</div>
-    <div class="mh-icon" id="m-chip-av" onclick="showChangePass()" title="บัญชีผู้ใช้">A</div>
+    <div style="display:flex;align-items:center;gap:6px">
+      <div class="mh-icon" id="m-chip-av" onclick="showChangePass()" title="บัญชีผู้ใช้">A</div>
+      <div class="mh-icon" onclick="doLogout()" title="ออกจากระบบ" style="background:rgba(255,80,80,.25)">
+        <i class="ti ti-logout" aria-hidden="true"></i>
+      </div>
+    </div>
   </div>
   <div id="m-content">
 
@@ -2288,6 +2297,12 @@ function updateUserUI(){
   // Desktop chip
   const dChip = document.getElementById('d-chip-name');
   if(dChip) dChip.textContent = name;
+  // อัปเดต sidebar footer
+  const sbName = document.getElementById('sb-user-name');
+  const sbRole = document.getElementById('sb-user-role');
+  const r = ROLES?.[currentUser.role] || {label:'ผู้ใช้', icon:''};
+  if(sbName) sbName.textContent = name;
+  if(sbRole) sbRole.textContent = (r.icon||'') + ' ' + r.label;
   const dAv = document.getElementById('d-chip-av');
   if(dAv){
     if(currentUser.photo_url) dAv.innerHTML=`<img src="${currentUser.photo_url}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`;
