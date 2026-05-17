@@ -407,7 +407,7 @@ input[type=file]{display:none}
     </div>
   </div>
 
-  <div class="login-version">Flow HR v3.10 · © 2026 Flow Engineering and Service Co.,Ltd.</div>
+  <div class="login-version">Flow HR v3.11 · © 2026 Flow Engineering and Service Co.,Ltd.</div>
 </div>
 
 <!-- ============ DESKTOP ============ -->
@@ -1449,12 +1449,25 @@ async function rejectLv(id){
   showToast('ปฏิเสธใบลาแล้ว');await loadLeaves();
 }
 async function submitLeave(){
-  const s=document.getElementById('lf-start').value,e=document.getElementById('lf-end').value;
-  if(!s||!e){showToast('กรุณาเลือกวันที่');return;}
-  const days=Math.ceil((new Date(e)-new Date(s))/86400000)+1;
-  const{error}=await db.from('leaves').insert({type:document.getElementById('lf-type').value,start_date:s,end_date:e,days,reason:document.getElementById('lf-reason').value,status:'pending'});
-  if(error){showToast('เกิดข้อผิดพลาด: '+error.message);return;}
-  closeSh('leave');showToast('ส่งใบลาสำเร็จ');await loadLeaves();
+  if(!currentUser){ showToast('กรุณา Login ก่อน'); return; }
+  const s = document.getElementById('lf-start').value;
+  const e = document.getElementById('lf-end').value;
+  if(!s||!e){ showToast('กรุณาเลือกวันที่'); return; }
+  if(new Date(e) < new Date(s)){ showToast('วันสิ้นสุดต้องหลังวันเริ่ม'); return; }
+  const days = Math.ceil((new Date(e)-new Date(s))/86400000)+1;
+  const{error} = await db.from('leaves').insert({
+    employee_id: currentUser.id,          // ← เพิ่ม employee_id
+    type:        document.getElementById('lf-type').value,
+    start_date:  s,
+    end_date:    e,
+    days,
+    reason:      document.getElementById('lf-reason').value||'',
+    status:      'pending'
+  });
+  if(error){ showToast('เกิดข้อผิดพลาด: '+error.message); return; }
+  closeSh('leave');
+  showToast('ส่งใบลาสำเร็จ ✅');
+  await loadLeaves();
 }
 
 // ============================================================
