@@ -407,7 +407,7 @@ input[type=file]{display:none}
     </div>
   </div>
 
-  <div class="login-version">Flow HR v3.06 · © 2026 Flow Engineering and Service Co.,Ltd.</div>
+  <div class="login-version">Flow HR v3.07 · © 2026 Flow Engineering and Service Co.,Ltd.</div>
 </div>
 
 <!-- ============ DESKTOP ============ -->
@@ -687,17 +687,76 @@ input[type=file]{display:none}
 
       <!-- SETTINGS -->
       <div id="dp-settings" class="page">
-        <div style="max-width:480px">
+        <div style="max-width:560px">
+
+          <!-- เวลาทำงาน -->
           <div class="card">
-            <div class="card-hdr"><div class="card-hdr-l"><i class="ti ti-clock" aria-hidden="true"></i>ตั้งค่าเวลาทำงาน</div></div>
+            <div class="card-hdr"><div class="card-hdr-l"><i class="ti ti-clock" aria-hidden="true"></i>เวลาทำงาน</div></div>
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-              <div class="f-group"><label class="f-lbl">เวลาเข้างาน</label><input type="time" class="f-inp" id="set-start" value="08:00"></div>
-              <div class="f-group"><label class="f-lbl">เวลาออกงาน</label><input type="time" class="f-inp" id="set-end" value="17:00"></div>
-              <div class="f-group"><label class="f-lbl">สายหลัง (นาที)</label><input type="number" class="f-inp" id="set-late" value="5"></div>
-              <div class="f-group"><label class="f-lbl">OT วันธรรมดา (x)</label><input type="number" class="f-inp" id="set-ot" value="1.5" step="0.5"></div>
+              <div class="f-group"><label class="f-lbl">เวลาเข้างาน</label>
+                <input type="time" class="f-inp" id="set-start" value="08:00"></div>
+              <div class="f-group"><label class="f-lbl">เวลาออกงาน</label>
+                <input type="time" class="f-inp" id="set-end" value="17:30"></div>
             </div>
-            <button class="btn-p" onclick="saveSettings()"><i class="ti ti-device-floppy" aria-hidden="true"></i>บันทึก</button>
           </div>
+
+          <!-- หักสาย -->
+          <div class="card">
+            <div class="card-hdr"><div class="card-hdr-l"><i class="ti ti-clock-exclamation" aria-hidden="true"></i>กฎการมาสาย</div></div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+              <div class="f-group"><label class="f-lbl">เริ่มนับสายหลัง (นาที)</label>
+                <input type="number" class="f-inp" id="set-late-after" value="0" min="0" max="60">
+                <div style="font-size:10px;color:#9E9E9E;margin-top:3px">0 = นับสายทันทีหลัง 08:00</div>
+              </div>
+              <div class="f-group"><label class="f-lbl">หักสายละ (บาท/นาที)</label>
+                <input type="number" class="f-inp" id="set-late-rate" value="1" min="0" step="0.5"></div>
+            </div>
+          </div>
+
+          <!-- OT -->
+          <div class="card">
+            <div class="card-hdr"><div class="card-hdr-l"><i class="ti ti-sun" aria-hidden="true"></i>อัตรา OT</div></div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+              <div class="f-group"><label class="f-lbl">จ–ศ หลังเลิกงาน (×)</label>
+                <input type="number" class="f-inp" id="set-ot-weekday" value="1.5" step="0.5" min="1"></div>
+              <div class="f-group"><label class="f-lbl">ส–อา 08:30–17:30 (×)</label>
+                <input type="number" class="f-inp" id="set-ot-weekend" value="1.5" step="0.5" min="1"></div>
+              <div class="f-group"><label class="f-lbl">ส–อา หลัง 17:30 (×)</label>
+                <input type="number" class="f-inp" id="set-ot-weekend-ot" value="3.0" step="0.5" min="1"></div>
+              <div class="f-group"><label class="f-lbl">วันหยุดนักขัตฤกษ์ (×)</label>
+                <input type="number" class="f-inp" id="set-ot-holiday" value="3.0" step="0.5" min="1"></div>
+            </div>
+          </div>
+
+          <!-- เบี้ยขยัน -->
+          <div class="card">
+            <div class="card-hdr"><div class="card-hdr-l"><i class="ti ti-star" aria-hidden="true"></i>เบี้ยขยัน</div></div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+              <div class="f-group"><label class="f-lbl">เบี้ยขยัน (บาท/เดือน)</label>
+                <input type="number" class="f-inp" id="set-diligence" value="500" min="0"></div>
+              <div class="f-group"><label class="f-lbl">ลาพักร้อนยังได้เบี้ยขยัน</label>
+                <select class="f-inp f-sel" id="set-diligence-annual">
+                  <option value="true">ได้รับ</option>
+                  <option value="false">ไม่ได้รับ</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <!-- ลาพักร้อน -->
+          <div class="card">
+            <div class="card-hdr"><div class="card-hdr-l"><i class="ti ti-beach" aria-hidden="true"></i>สิทธิ์ลาพักร้อน</div></div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+              <div class="f-group"><label class="f-lbl">พักร้อน (วัน/ปี)</label>
+                <input type="number" class="f-inp" id="set-annual-days" value="6" min="1"></div>
+              <div class="f-group"><label class="f-lbl">ได้สิทธิ์หลังทำงานครบ (เดือน)</label>
+                <input type="number" class="f-inp" id="set-annual-after" value="12" min="1"></div>
+            </div>
+          </div>
+
+          <button class="btn-p" style="width:100%;padding:13px" onclick="saveSettings()">
+            <i class="ti ti-device-floppy" aria-hidden="true"></i>บันทึกการตั้งค่าทั้งหมด
+          </button>
         </div>
       </div>
 
@@ -1179,6 +1238,7 @@ function goD(p){
   if(p==='payslip'){initPSSelects('d');renderDPS();}
   if(p==='offices')renderOfficesList();
   if(p==='orgchart')renderOrgChart();
+  if(p==='settings')loadSettings();
 }
 function goM(p){
   document.querySelectorAll('#m-content .page').forEach(e=>e.classList.remove('show'));
@@ -1911,8 +1971,54 @@ async function saveOffice(){
 // SETTINGS
 // ============================================================
 async function saveSettings(){
-  const{error}=await db.from('work_settings').update({work_start:document.getElementById('set-start').value,work_end:document.getElementById('set-end').value,late_after:parseInt(document.getElementById('set-late').value)||5,ot_rate_day:parseFloat(document.getElementById('set-ot').value)||1.5}).limit(1);
-  if(error){showToast('เกิดข้อผิดพลาด');return;}showToast('บันทึกการตั้งค่าสำเร็จ');
+  const payload = {
+    work_start:           document.getElementById('set-start')?.value || '08:00',
+    work_end:             document.getElementById('set-end')?.value   || '17:30',
+    late_after_mins:      parseInt(document.getElementById('set-late-after')?.value)||0,
+    late_deduct_per_min:  parseFloat(document.getElementById('set-late-rate')?.value)||1,
+    ot_weekday_rate:      parseFloat(document.getElementById('set-ot-weekday')?.value)||1.5,
+    ot_weekend_rate:      parseFloat(document.getElementById('set-ot-weekend')?.value)||1.5,
+    ot_weekend_after1730: parseFloat(document.getElementById('set-ot-weekend-ot')?.value)||3.0,
+    ot_holiday_rate:      parseFloat(document.getElementById('set-ot-holiday')?.value)||3.0,
+    diligence_bonus:      parseFloat(document.getElementById('set-diligence')?.value)||500,
+    diligence_allow_annual: document.getElementById('set-diligence-annual')?.value !== 'false',
+    annual_leave_days:    parseInt(document.getElementById('set-annual-days')?.value)||6,
+    annual_leave_after_months: parseInt(document.getElementById('set-annual-after')?.value)||12,
+  };
+
+  // ตรวจว่ามีแถวอยู่แล้วไหม
+  const{data:existing} = await db.from('work_settings').select('id').limit(1);
+
+  let error;
+  if(existing && existing.length > 0){
+    // มีแถวแล้ว → update
+    ({error} = await db.from('work_settings').update(payload).eq('id', existing[0].id));
+  } else {
+    // ยังไม่มี → insert
+    ({error} = await db.from('work_settings').insert(payload));
+  }
+
+  if(error){ showToast('เกิดข้อผิดพลาด: '+error.message); return; }
+  showToast('บันทึกการตั้งค่าสำเร็จ ✅');
+}
+
+async function loadSettings(){
+  const{data} = await db.from('work_settings').select('*').limit(1);
+  if(!data || !data.length) return;
+  const s = data[0];
+  const set = (id, val) => { const el=document.getElementById(id); if(el&&val!=null) el.value=val; };
+  set('set-start',           s.work_start||'08:00');
+  set('set-end',             s.work_end||'17:30');
+  set('set-late-after',      s.late_after_mins??0);
+  set('set-late-rate',       s.late_deduct_per_min??1);
+  set('set-ot-weekday',      s.ot_weekday_rate??1.5);
+  set('set-ot-weekend',      s.ot_weekend_rate??1.5);
+  set('set-ot-weekend-ot',   s.ot_weekend_after1730??3.0);
+  set('set-ot-holiday',      s.ot_holiday_rate??3.0);
+  set('set-diligence',       s.diligence_bonus??500);
+  set('set-diligence-annual',s.diligence_allow_annual===false?'false':'true');
+  set('set-annual-days',     s.annual_leave_days??6);
+  set('set-annual-after',    s.annual_leave_after_months??12);
 }
 
 // ============================================================
