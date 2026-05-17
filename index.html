@@ -1545,6 +1545,48 @@ async function loadLeaves(){
 // ============================================================
 // RENDER ALL
 // ============================================================
+
+// ============================================================
+// HBD BANNER
+// ============================================================
+function renderHBDBanner(){
+  const el = document.getElementById('d-hbd-banner');
+  if(!el) return;
+  const today = new Date();
+  const todayMM = today.getMonth()+1, todayDD = today.getDate();
+  const bdays = emps.filter(e=>{
+    if(!e.date_of_birth||!e.is_active) return false;
+    const d=new Date(e.date_of_birth);
+    return d.getMonth()+1===todayMM && d.getDate()===todayDD;
+  });
+  if(!bdays.length){ el.innerHTML=''; return; }
+  const colors=['#FCD34D','#F472B6','#60A5FA','#34D399','#FB923C','#A78BFA'];
+  const confetti=Array.from({length:12},(_,i)=>{
+    const c=colors[i%colors.length],left=Math.round(Math.random()*100);
+    const dur=(1.5+Math.random()*1.5).toFixed(1),delay=Math.random().toFixed(1);
+    return `<span style="background:${c};left:${left}%;animation-duration:${dur}s;animation-delay:${delay}s"></span>`;
+  }).join('');
+  el.innerHTML = bdays.map(e=>{
+    const name=e.nickname||e.first_name||e.name||'—';
+    const full=(e.first_name||e.name||'')+(e.last_name?' '+e.last_name:'');
+    const age=today.getFullYear()-new Date(e.date_of_birth).getFullYear();
+    const isSelf=e.id===currentUser?.id;
+    const avEl=e.photo_url?`<img src="${e.photo_url}" alt="${name}" style="width:100%;height:100%;object-fit:cover">`:`<div style="font-size:22px;font-weight:700;color:#fff">${ini(full)}</div>`;
+    return `<div class="hbd-banner">
+      <div class="hbd-confetti">${confetti}</div>
+      <div class="hbd-av">${avEl}</div>
+      <div style="flex:1;position:relative;z-index:1">
+        <div style="font-size:13px;color:rgba(255,255,255,.75);font-weight:500;margin-bottom:4px">
+          🎂 วันเกิด${isSelf?'ของคุณ':'ของทีม'}วันนี้!
+        </div>
+        <div class="hbd-txt-main">Happy Birthday ${name}! 🎉</div>
+        <div class="hbd-txt-sub">${full} · ครบ ${age} ปี · ขอให้มีความสุขมากๆ 🥳</div>
+      </div>
+      <div style="position:relative;z-index:1;font-size:48px;flex-shrink:0">🎂</div>
+    </div>`;
+  }).join('');
+}
+
 function renderAll(){
   renderKPI();
   renderHBDBanner();
