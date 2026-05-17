@@ -233,6 +233,41 @@ html,body{height:100%;font-family:'Noto Sans Thai',system-ui,sans-serif;font-siz
 #offline-bar{background:#E65100;color:#fff;text-align:center;padding:6px;font-size:12px;display:none}
 #offline-bar.show{display:block}
 
+
+
+
+/* NO ACCESS */
+.no-access{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:60px 24px;text-align:center;color:#B0BEC5;min-height:300px}
+.no-access i{font-size:48px;margin-bottom:16px;color:#CFD8DC}
+.no-access h3{font-size:16px;font-weight:600;color:#78909C;margin-bottom:8px}
+.no-access p{font-size:12px;line-height:1.6}
+/* STATUS BADGE */
+.status-active{background:#E8F5E9;color:#1B5E20;border:1px solid #A5D6A7}
+.status-resigned{background:#FFEBEE;color:#B71C1C;border:1px solid #FFCDD2}
+.status-probation{background:#FFF9C4;color:#E65100;border:1px solid #FFD54F}
+/* TENURE */
+.tenure-chip{font-size:11px;color:#546E7A;white-space:nowrap}
+/* UPLOAD AVATAR */
+.av-upload-wrap{position:relative;display:inline-block;cursor:pointer}
+.av-upload-wrap:hover .av-cam{opacity:1}
+.av-cam{position:absolute;inset:0;border-radius:50%;background:rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity .2s;font-size:20px;color:#fff}
+/* HR-only fields */
+.hr-only-field{border:1.5px solid #E3F2FD;border-radius:10px;padding:10px 12px;background:#F8FBFF;margin-bottom:12px}
+.hr-only-lbl{font-size:10px;font-weight:700;color:#1565C0;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px;display:flex;align-items:center;gap:6px}
+/* ===== EMPLOYEE MANAGEMENT ===== */
+.emp-tabs{display:flex;gap:2px;background:var(--color-background-secondary,#F5F7FA);border-radius:10px;padding:3px;margin-bottom:14px}
+.emp-tab{flex:1;padding:7px 10px;border-radius:8px;text-align:center;font-size:12px;font-weight:500;cursor:pointer;color:#546E7A;transition:all .15s}
+.emp-tab.act{background:#fff;color:#1565C0;font-weight:600;box-shadow:0 1px 4px rgba(0,0,0,.1)}
+.form-section{font-size:11px;font-weight:700;color:#78909C;text-transform:uppercase;letter-spacing:.06em;margin:16px 0 8px;padding-bottom:6px;border-bottom:.5px solid #EBEBEB}
+.form-grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.form-grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+.emp-actions{display:flex;gap:6px}
+.btn-icon{width:32px;height:32px;border-radius:7px;display:flex;align-items:center;justify-content:center;border:none;cursor:pointer;font-size:15px;transition:all .15s;flex-shrink:0}
+.btn-edit{background:#E3F2FD;color:#1565C0}
+.btn-edit:hover{background:#BBDEFB}
+.btn-del{background:#FFEBEE;color:#C62828}
+.btn-del:hover{background:#FFCDD2}
+
 input[type=file]{display:none}
 
 /* ===== NEW DEVICE ALERT ===== */
@@ -447,16 +482,24 @@ input[type=file]{display:none}
       <!-- EMPLOYEES -->
       <div id="dp-employees" class="page">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-          <div style="font-size:13px;color:#78909C">ทั้งหมด <b id="d-emp-count" style="color:#1A2332">0</b> คน</div>
+          <div style="font-size:13px;color:#78909C">พนักงานทั้งหมด <b id="d-emp-count" style="color:#1A2332">0</b> คน</div>
           <div style="display:flex;gap:8px">
-            <button class="btn-o" onclick="exportCSV()"><i class="ti ti-download" aria-hidden="true"></i>Export CSV</button>
-            <button class="btn-p" onclick="showSh('add-emp')"><i class="ti ti-plus" aria-hidden="true"></i>เพิ่มพนักงาน</button>
+            <button class="btn-o" onclick="exportCSV()"><i class="ti ti-download" aria-hidden="true"></i>Export</button>
+            <button class="btn-p" onclick="openAddEmpSheet()"><i class="ti ti-plus" aria-hidden="true"></i>เพิ่มพนักงาน</button>
           </div>
         </div>
-        <div class="search-bar"><i class="ti ti-search" aria-hidden="true"></i><input placeholder="ค้นหา..." oninput="filterEmps(this.value)"></div>
+        <div class="search-bar"><i class="ti ti-search" aria-hidden="true"></i><input placeholder="ค้นหาชื่อ ตำแหน่ง แผนก..." oninput="filterEmps(this.value)"></div>
+        <!-- filter แผนก -->
+        <div style="display:flex;gap:6px;margin-bottom:10px;overflow-x:auto;scrollbar-width:none;padding-bottom:2px">
+          <button onclick="filterDept('')" id="fd-all" style="padding:5px 12px;border-radius:20px;border:.5px solid #1565C0;background:#1565C0;color:#fff;font-size:11px;font-weight:500;cursor:pointer;white-space:nowrap">ทั้งหมด</button>
+          <button onclick="filterDept('บริหาร')" id="fd-บริหาร" style="padding:5px 12px;border-radius:20px;border:.5px solid #E0E0E0;background:#fff;color:#546E7A;font-size:11px;font-weight:500;cursor:pointer;white-space:nowrap">บริหาร</button>
+          <button onclick="filterDept('ผลิต')" id="fd-ผลิต" style="padding:5px 12px;border-radius:20px;border:.5px solid #E0E0E0;background:#fff;color:#546E7A;font-size:11px;font-weight:500;cursor:pointer;white-space:nowrap">ผลิต</button>
+          <button onclick="filterDept('คลังสินค้า')" id="fd-คลังสินค้า" style="padding:5px 12px;border-radius:20px;border:.5px solid #E0E0E0;background:#fff;color:#546E7A;font-size:11px;font-weight:500;cursor:pointer;white-space:nowrap">คลังสินค้า</button>
+          <button onclick="filterDept('แผนกขายและการตลาด')" id="fd-แผนกขายและการตลาด" style="padding:5px 12px;border-radius:20px;border:.5px solid #E0E0E0;background:#fff;color:#546E7A;font-size:11px;font-weight:500;cursor:pointer;white-space:nowrap">ขาย/การตลาด</button>
+        </div>
         <div class="card" style="padding:0;overflow:hidden">
           <table class="emp-table"><thead><tr>
-            <th>พนักงาน</th><th>ตำแหน่ง</th><th>แผนก</th><th>วันเกิด / อายุ</th><th>อายุงาน</th><th>เงินเดือน</th><th></th>
+            <th>พนักงาน</th><th>คำนำหน้า</th><th>ตำแหน่ง</th><th>แผนก</th><th>เงินเดือน</th><th>อายุงาน</th><th>สถานะ</th><th>จัดการ</th>
           </tr></thead><tbody id="d-emp-tbody"></tbody></table>
         </div>
       </div>
@@ -549,6 +592,21 @@ input[type=file]{display:none}
           <button class="btn-p" onclick="openOffice()"><i class="ti ti-plus" aria-hidden="true"></i>เพิ่มสาขา</button>
         </div>
         <div id="d-offices-list"></div>
+      </div>
+
+      <!-- REPORTS -->
+      <div id="dp-reports" class="page">
+        <div style="max-width:600px">
+          <div class="card">
+            <div class="card-hdr"><div class="card-hdr-l"><i class="ti ti-report" aria-hidden="true"></i>รายงานการเงิน</div></div>
+            <div class="sec-lbl">Export รายงาน</div>
+            <div style="display:flex;flex-direction:column;gap:8px">
+              <button class="btn-o" onclick="showToast('Export Payroll CSV')"><i class="ti ti-download" aria-hidden="true"></i>Payroll รายเดือน (.csv)</button>
+              <button class="btn-o" onclick="showToast('Export ประกันสังคม')"><i class="ti ti-download" aria-hidden="true"></i>ประกันสังคม (.csv)</button>
+              <button class="btn-o" onclick="showToast('Export ภาษีหัก ณ ที่จ่าย')"><i class="ti ti-download" aria-hidden="true"></i>ภาษีหัก ณ ที่จ่าย</button>
+            </div>
+          </div>
+        </div>
       </div>
 
       <!-- SETTINGS -->
@@ -790,7 +848,34 @@ let photoTarget=null,newEmpPhoto=null,workTimer=null;
 // ============================================================
 const ini=n=>(n||'?').split(' ').map(w=>w[0]||'').join('').slice(0,2).toUpperCase();
 const age=d=>d?Math.floor((TODAY-new Date(d))/31557600000):'—';
-const tenure=s=>s?Math.floor((TODAY-new Date(s))/31557600000):0;
+// อายุงาน — คืน {years, months, days, text}
+function tenureDetail(startDate, endDate){
+  if(!startDate) return {years:0,months:0,days:0,text:'—'};
+  const s = new Date(startDate);
+  const e = endDate ? new Date(endDate) : TODAY;
+  let y = e.getFullYear() - s.getFullYear();
+  let m = e.getMonth() - s.getMonth();
+  let d = e.getDate() - s.getDate();
+  if(d < 0){ m--; d += new Date(e.getFullYear(), e.getMonth(), 0).getDate(); }
+  if(m < 0){ y--; m += 12; }
+  let text = '';
+  if(y > 0) text += y + ' ปี ';
+  if(m > 0 || y === 0) text += m + ' เดือน ';
+  if(y === 0) text += d + ' วัน';
+  return {years:y, months:m, days:d, text:text.trim()};
+}
+const tenure = s => tenureDetail(s).years;
+
+// สถานะพนักงาน
+function empStatusBadge(e){
+  if(!e.is_active && e.end_date)
+    return `<span class="badge status-resigned">ลาออก ${new Date(e.end_date).toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'2-digit'})}</span>`;
+  if(!e.is_active)
+    return `<span class="badge status-resigned">ไม่ใช้งาน</span>`;
+  if(e.probation_end && new Date(e.probation_end) >= TODAY)
+    return `<span class="badge status-probation">ทดลองงาน</span>`;
+  return `<span class="badge status-active">ทำงาน</span>`;
+}
 const fmtT=d=>new Date(d).toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'});
 const p2=n=>String(n).padStart(2,'0');
 const todayS=()=>TODAY.toISOString().slice(0,10);
@@ -848,7 +933,20 @@ async function loadAll(){
   await Promise.all([loadEmps(),loadOffices(),loadLeaves()]);
 }
 async function loadEmps(){
-  const{data}=await db.from('employees').select('*').eq('is_active',true).order('name');
+  let query = db.from('employees').select('*').eq('is_active',true)
+    .order('position_order',{ascending:true, nullsFirst:false})
+    .order('employee_code',{ascending:true, nullsFirst:false});
+  if(can('emp_view_all')){
+    // owner, hr_manager, accountant — เห็นทุกคน
+  } else if(can('emp_view_dept') && isDeptHead()){
+    // dept_head — เห็นเฉพาะแผนกตัวเอง
+    query = query.eq('department', myDept());
+  } else {
+    // employee — ดึงทุกคน (แต่แสดงแค่บางข้อมูล จัดการใน render)
+    // ยังต้องดึงทั้งหมดเพื่อแสดง dashboard ทีม
+    // แต่ซ่อนเงินเดือนคนอื่น
+  }
+  const{data}=await query;
   emps=data||[];renderAll();
 }
 async function loadOffices(){
@@ -856,8 +954,26 @@ async function loadOffices(){
   offices=data||[];renderOffTabs('d');renderOffTabs('m');
 }
 async function loadLeaves(){
-  const{data}=await db.from('leaves').select('*, employees(name,department,photo_url)').order('start_date');
-  leaves=data||[];renderLeaveAll();
+  let query = db.from('leaves')
+    .select('*, employees(id,name,department,photo_url,first_name,last_name)')
+    .order('start_date');
+
+  if(can('leave_view_all')){
+    // owner, hr_manager, accountant — เห็นทุกคน
+  } else if(can('leave_view_dept') && isDeptHead()){
+    // dept_head — เห็นเฉพาะแผนกตัวเอง (filter หลัง fetch)
+  } else {
+    // employee — เห็นแค่ของตัวเอง
+    query = query.eq('employee_id', currentUser.id);
+  }
+  const{data}=await query;
+
+  // dept_head: filter เฉพาะ dept ตัวเอง
+  let filtered = data||[];
+  if(isDeptHead() && !can('leave_view_all')){
+    filtered = filtered.filter(l=> l.employees?.department === myDept() || l.employee_id === currentUser.id);
+  }
+  leaves=filtered; renderLeaveAll();
 }
 
 // ============================================================
@@ -956,6 +1072,9 @@ function renderLeaveAll(){
 
 function lvRowHTML(l,showApprove=false){
   const e=l.employees||{};
+  // dept_head อนุมัติได้เฉพาะแผนกตัวเอง
+  const canApprove = showApprove && can('leave_approve') &&
+    (isHR() || (isDeptHead() && e.department === myDept()));
   const bg=DEPT_BG[e.department]||'#E3F2FD',col=DEPT_COL[e.department]||'#1565C0';
   const avEl=e.photo_url?`<img src="${e.photo_url}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`:`<div class="ini" style="font-size:12px;color:${col}">${ini(e.name||'?')}</div>`;
   return `<div class="lv-row">
@@ -967,7 +1086,7 @@ function lvRowHTML(l,showApprove=false){
     </div>
     <div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end;flex-shrink:0">
       <span class="badge ${l.status==='approved'?'b-green':l.status==='rejected'?'b-red':'b-orange'}">${l.status==='approved'?'อนุมัติ':l.status==='rejected'?'ปฏิเสธ':'รออนุมัติ'}</span>
-      ${showApprove&&l.status==='pending'?`<div style="display:flex;gap:4px"><button onclick="approveLv('${l.id}')" style="padding:3px 8px;background:var(--green-l);color:var(--green);border:none;border-radius:5px;font-size:11px;cursor:pointer;font-weight:600">อนุมัติ</button><button onclick="rejectLv('${l.id}')" style="padding:3px 8px;background:var(--red-l);color:var(--red);border:none;border-radius:5px;font-size:11px;cursor:pointer;font-weight:600">ปฏิเสธ</button></div>`:''}
+      ${canApprove&&l.status==='pending'?`<div style="display:flex;gap:4px"><button onclick="approveLv('${l.id}')" style="padding:3px 8px;background:var(--green-l);color:var(--green);border:none;border-radius:5px;font-size:11px;cursor:pointer;font-weight:600">อนุมัติ</button><button onclick="rejectLv('${l.id}')" style="padding:3px 8px;background:var(--red-l);color:var(--red);border:none;border-radius:5px;font-size:11px;cursor:pointer;font-weight:600">ปฏิเสธ</button></div>`:''}
     </div>
   </div>`;
 }
@@ -1034,15 +1153,190 @@ function renderBars(id,data){
 // ============================================================
 // EMPLOYEES
 // ============================================================
+// ---- Employee Tab Filter ----
+let activeDeptFilter = '';
+function filterDept(dept){
+  activeDeptFilter = dept;
+  document.querySelectorAll('[id^="fd-"]').forEach(b=>{
+    const isDept = b.id === 'fd-'+(dept||'all');
+    b.style.background = isDept ? '#1565C0' : '#fff';
+    b.style.color = isDept ? '#fff' : '#546E7A';
+    b.style.borderColor = isDept ? '#1565C0' : '#E0E0E0';
+  });
+  applyFilter();
+}
+function applyFilter(){
+  const q = document.querySelector('#dp-employees .search-bar input')?.value || '';
+  let f = emps.filter(e =>
+    (!q || (e.name||'').includes(q)||(e.position||'').includes(q)||(e.department||'').includes(q)) &&
+    (!activeDeptFilter || e.department === activeDeptFilter)
+  );
+  renderEmpTable(f); renderEmpList(f);
+}
+
+function getFullName(e){
+  if(e.first_name && e.last_name) return (e.title?e.title+' ':'')+e.first_name+' '+e.last_name;
+  return e.name||'—';
+}
+
 function renderEmpTable(data){
-  data=data||emps;
-  document.getElementById('d-emp-tbody').innerHTML=data.map(e=>`<tr><td><div style="display:flex;align-items:center;gap:10px">${avHTML(e,36,true)}<div><div style="font-weight:500">${e.name}</div><div style="font-size:11px;color:#78909C">${e.email||''}</div></div></div></td><td>${e.position||'—'}</td><td><span class="badge ${DEPT_CLS[e.department]||'b-blue'}">${e.department||'—'}</span></td><td>${e.date_of_birth?new Date(e.date_of_birth).getDate()+' '+MTH[new Date(e.date_of_birth).getMonth()]+' · '+age(e.date_of_birth)+' ปี':'—'}</td><td>${tenure(e.start_date)} ปี</td><td>฿${(e.salary||0).toLocaleString('th-TH')}</td><td><button onclick="showToast('${e.name}')" style="padding:5px 12px;border:.5px solid #E0E0E0;border-radius:7px;background:#fff;font-size:12px;cursor:pointer">จัดการ</button></td></tr>`).join('')||'<tr><td colspan="7" style="text-align:center;color:#B0BEC5;padding:24px">ไม่มีข้อมูล</td></tr>';
+  data = data||emps;
+  document.getElementById('d-emp-tbody').innerHTML = data.map(e => {
+    const td = tenureDetail(e.start_date, e.end_date||null);
+    return `<tr>
+      <td>
+        <div style="display:flex;align-items:center;gap:10px">
+          <div class="av-upload-wrap" onclick="triggerPhoto('${e.id}')">
+            ${avHTML(e,36,false)}
+            <div class="av-cam"><i class="ti ti-camera" aria-hidden="true"></i></div>
+          </div>
+          <div style="min-width:0">
+            <div style="font-weight:500;font-size:13px">${e.first_name||e.name||'—'} ${e.last_name||''}</div>
+            <div style="font-size:10px;color:#9E9E9E">${e.employee_code||''}</div>
+          </div>
+        </div>
+      </td>
+      <td style="font-size:12px">${e.title||'—'}</td>
+      <td style="font-size:12px">${e.position||'—'}</td>
+      <td><span class="badge ${DEPT_CLS[e.department]||'b-blue'}">${e.department||'—'}</span></td>
+      <td style="font-size:12px">${can('salary_view')?'฿'+(e.salary||0).toLocaleString('th-TH'):'—'}</td>
+      <td><span class="tenure-chip">${td.text||'—'}</span></td>
+      <td>${empStatusBadge(e)}</td>
+      <td>
+        <div class="emp-actions">
+          <button class="btn-icon btn-edit" onclick="openEditEmp('${e.id}')" title="แก้ไข"><i class="ti ti-edit" aria-hidden="true"></i></button>
+          <button class="btn-icon btn-del" onclick="confirmDeleteEmp('${e.id}','${(e.first_name||e.name||'').replace(/'/g,"\'")}')" title="ปิดการใช้งาน"><i class="ti ti-user-off" aria-hidden="true"></i></button>
+        </div>
+      </td>
+    </tr>`;
+  }).join('') || '<tr><td colspan="8" style="text-align:center;color:#B0BEC5;padding:24px">ไม่มีข้อมูล</td></tr>';
 }
+
 function renderEmpList(data){
-  data=data||emps;const el=document.getElementById('m-emp-list');if(!el)return;
-  el.innerHTML=data.map(e=>`<div class="emp-card-m">${avHTML(e,46)}<div style="flex:1;min-width:0"><div style="font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${e.name}</div><div style="font-size:11px;color:#78909C;margin-top:2px">${e.position||'—'} · ${e.department||'—'}</div></div><span class="badge ${DEPT_CLS[e.department]||'b-blue'}">${e.department||'—'}</span></div>`).join('')||'<div style="text-align:center;color:#B0BEC5;padding:30px;font-size:12px">ยังไม่มีพนักงาน</div>';
+  data = data||emps;
+  const el = document.getElementById('m-emp-list'); if(!el) return;
+  el.innerHTML = data.map(e=>{
+    const td=tenureDetail(e.start_date,e.end_date||null);
+    return `<div class="emp-card-m" onclick="openEditEmp('${e.id}')">
+      <div class="av-upload-wrap">
+        ${avHTML(e,46)}
+        <div class="av-cam" style="font-size:16px"><i class="ti ti-edit" aria-hidden="true"></i></div>
+      </div>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${getFullName(e)}</div>
+        <div style="font-size:11px;color:#78909C;margin-top:2px">${e.position||'—'} · ${e.department||'—'}</div>
+        <div style="display:flex;align-items:center;gap:6px;margin-top:4px">
+          ${empStatusBadge(e)}
+          <span style="font-size:10px;color:#9E9E9E">${td.text||''}</span>
+        </div>
+      </div>
+      <i class="ti ti-chevron-right" style="color:#B0BEC5;font-size:18px" aria-hidden="true"></i>
+    </div>`;
+  }).join('') || '<div style="text-align:center;color:#B0BEC5;padding:30px;font-size:12px">ยังไม่มีพนักงาน</div>';
 }
-function filterEmps(q){const f=emps.filter(e=>(e.name||'').includes(q)||(e.position||'').includes(q)||(e.department||'').includes(q));renderEmpTable(f);renderEmpList(f);}
+
+function filterEmps(q){ applyFilter(); }
+
+// ---- Employee Tab Switch ----
+function switchEmpTab(tab){
+  ['basic','work','bank','contact'].forEach(t=>{
+    const el=document.getElementById('etab-'+t); if(el) el.style.display=t===tab?'block':'none';
+  });
+  document.querySelectorAll('.emp-tab').forEach((el,i)=>{
+    const tabs=['basic','work','bank','contact'];
+    el.classList.toggle('act',tabs[i]===tab);
+  });
+}
+
+// ---- Open Add ----
+function openAddEmpSheet(){
+  document.getElementById('nf-edit-id').value='';
+  document.getElementById('sh-emp-title').textContent='เพิ่มพนักงานใหม่';
+  // clear fields
+  ['nf-title','nf-firstname','nf-lastname','nf-firstname-en','nf-lastname-en',
+   'nf-nickname','nf-dob','nf-national-id','nf-code','nf-pos','nf-dept',
+   'nf-start','nf-probation','nf-salary','nf-username','nf-password',
+   'nf-bank-name','nf-bank-account','nf-bank-branch','nf-phone','nf-email',
+   'nf-line','nf-address','nf-emer-name','nf-emer-phone'].forEach(id=>{
+    const el=document.getElementById(id); if(el) el.value='';
+  });
+  const av=document.getElementById('sh-new-av');
+  if(av) av.innerHTML='<div class="ini"><i class="ti ti-camera" style="font-size:28px;color:#9E9E9E"></i></div><div class="cam-overlay"><i class="ti ti-camera" style="color:#fff;font-size:20px"></i></div>';
+  newEmpPhoto=null;
+  // สถานะ
+  let status = 'active';
+  if(!e.is_active && e.end_date) status = 'resigned';
+  else if(!e.is_active) status = 'terminated';
+  else if(e.probation_end && new Date(e.probation_end) >= TODAY) status = 'probation';
+  set('nf-status', status);
+  set('nf-end-date', e.end_date||'');
+  toggleResignDate();
+  showHROnlyFields();
+  switchEmpTab('basic');
+  showSh('add-emp');
+}
+
+// ---- Open Edit ----
+function openEditEmp(id){
+  const e = emps.find(x=>x.id===id); if(!e) return;
+  document.getElementById('nf-edit-id').value = e.id;
+  document.getElementById('sh-emp-title').textContent = 'แก้ไข — '+(e.first_name||e.name||'');
+  // ใส่ข้อมูลเดิม
+  const set = (id,val) => { const el=document.getElementById(id); if(el) el.value=val||''; };
+  set('nf-title',      e.title);
+  set('nf-firstname',  e.first_name || (e.name||'').split(' ')[0]);
+  set('nf-lastname',   e.last_name  || (e.name||'').split(' ')[1]);
+  set('nf-firstname-en', e.first_name_en || (e.name_en||'').split(' ')[0]);
+  set('nf-lastname-en',  e.last_name_en  || (e.name_en||'').split(' ')[1]);
+  set('nf-nickname',   e.nickname);
+  set('nf-dob',        e.date_of_birth);
+  set('nf-national-id',e.national_id);
+  set('nf-gender',     e.gender);
+  set('nf-code',       e.employee_code);
+  set('nf-pos',        e.position);
+  set('nf-dept',       e.department);
+  set('nf-start',      e.start_date);
+  set('nf-probation',  e.probation_end);
+  set('nf-salary-type',e.salary_type||'monthly');
+  set('nf-salary',     e.salary);
+  set('nf-role',       e.role||'employee');
+  set('nf-username',   e.username);
+  set('nf-bank-name',  e.bank_name);
+  set('nf-bank-account',e.bank_account);
+  set('nf-bank-branch',e.bank_branch);
+  set('nf-bank-type',  e.bank_type||'savings');
+  set('nf-sso',        e.sso_eligible!==false?'true':'false');
+  set('nf-phone',      e.phone);
+  set('nf-email',      e.email);
+  set('nf-line',       e.line_id);
+  set('nf-address',    e.address);
+  set('nf-emer-name',  e.emergency_name);
+  set('nf-emer-phone', e.emergency_phone);
+  // รูป
+  const av=document.getElementById('sh-new-av');
+  if(av && e.photo_url) av.innerHTML=`<img src="${e.photo_url}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`;
+  // สถานะ
+  let status = 'active';
+  if(!e.is_active && e.end_date) status = 'resigned';
+  else if(!e.is_active) status = 'terminated';
+  else if(e.probation_end && new Date(e.probation_end) >= TODAY) status = 'probation';
+  set('nf-status', status);
+  set('nf-end-date', e.end_date||'');
+  toggleResignDate();
+  showHROnlyFields();
+  switchEmpTab('basic');
+  showSh('add-emp');
+}
+
+// ---- Confirm Delete ----
+async function confirmDeleteEmp(id, name){
+  if(!confirm('ปิดการใช้งาน '+name+' ใช่ไหม?
+(ข้อมูลยังคงอยู่ในระบบ)')) return;
+  const{error}=await db.from('employees').update({is_active:false}).eq('id',id);
+  if(error){showToast('เกิดข้อผิดพลาด');return;}
+  showToast(name+' ปิดการใช้งานแล้ว');
+  await loadEmps();
+}
 function exportCSV(){
   const rows=[['ชื่อ','ตำแหน่ง','แผนก','วันเกิด','วันเริ่มงาน','เงินเดือน'],...emps.map(e=>[e.name,e.position,e.department,e.date_of_birth||'',e.start_date||'',e.salary||0])];
   const csv=rows.map(r=>r.join(',')).join('\n');
@@ -1205,8 +1499,29 @@ function renderPayrollTable(){
 // ============================================================
 function initPSSelects(pfx){
   const pre=pfx==='d'?'d':'m';
-  const sel=document.getElementById(`${pre}-ps-emp`);if(sel){while(sel.options.length>1)sel.remove(1);emps.forEach(e=>{const o=document.createElement('option');o.value=e.id;o.textContent=e.name;sel.appendChild(o);});}
-  const msel=document.getElementById(`${pre}-ps-month`);if(msel&&msel.options.length===0){for(let i=0;i<6;i++){const d=new Date(CUR_Y,CUR_M-i,1);const o=document.createElement('option');o.value=d.getMonth()+','+d.getFullYear();o.textContent=MTH_F[d.getMonth()]+' '+d.getFullYear();msel.appendChild(o);}}
+  const sel=document.getElementById(`${pre}-ps-emp`);
+  if(sel){
+    while(sel.options.length>1) sel.remove(1);
+    const list = can('payslip_all') ? emps : emps.filter(e=>e.id===currentUser.id);
+    list.forEach(e=>{
+      const o=document.createElement('option');
+      o.value=e.id;
+      o.textContent=(e.first_name||e.name||'')+(e.last_name?' '+e.last_name:'');
+      sel.appendChild(o);
+    });
+    // พนักงานทั่วไปเลือกตัวเองอัตโนมัติ
+    if(!can('payslip_all') && currentUser) sel.value=currentUser.id;
+  }
+  const msel=document.getElementById(`${pre}-ps-month`);
+  if(msel&&msel.options.length===0){
+    for(let i=0;i<6;i++){
+      const d=new Date(CUR_Y,CUR_M-i,1);
+      const o=document.createElement('option');
+      o.value=d.getMonth()+','+d.getFullYear();
+      o.textContent=MTH_F[d.getMonth()]+' '+d.getFullYear();
+      msel.appendChild(o);
+    }
+  }
 }
 function renderDPS(){renderPS('d','d-ps-area');}
 function renderMPS(){renderPS('m','m-ps-area');}
@@ -1259,6 +1574,126 @@ if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(
 // AUTH — Login / Logout / Change Password
 // ============================================================
 let currentUser = null;
+
+// ============================================================
+// PERMISSION ENGINE — 5 Roles
+// owner > hr_manager > dept_head > accountant > employee
+// ============================================================
+const ROLES = {
+  owner:      { label:'เจ้าของ',          color:'#E65100', bg:'#FFF3E0', icon:'👑' },
+  hr_manager: { label:'HR Manager',       color:'#1565C0', bg:'#E3F2FD', icon:'🧑‍💼' },
+  dept_head:  { label:'หัวหน้าแผนก',       color:'#7B1FA2', bg:'#F3E5F5', icon:'👨‍💼' },
+  accountant: { label:'บัญชี',            color:'#2E7D32', bg:'#E8F5E9', icon:'🧮' },
+  employee:   { label:'พนักงาน',          color:'#546E7A', bg:'#ECEFF1', icon:'👤' },
+};
+
+// หน้าที่เข้าได้ (* = ทุก role)
+const PERMS = {
+  dashboard:  '*',
+  checkin:    '*',
+  employees:  '*',
+  leave:      '*',
+  payslip:    '*',
+  payroll:    ['owner','hr_manager','accountant'],
+  offices:    ['owner','hr_manager'],
+  settings:   ['owner','hr_manager'],
+  reports:    ['owner','accountant'],
+  profile:    '*',
+};
+
+// actions ละเอียด
+const ACTION_PERMS = {
+  // พนักงาน
+  emp_add:          ['owner','hr_manager'],
+  emp_edit:         ['owner','hr_manager'],
+  emp_delete:       ['owner','hr_manager'],
+  emp_view_all:     ['owner','hr_manager','accountant'],
+  emp_view_dept:    ['owner','hr_manager','dept_head'],   // เห็นเฉพาะแผนกตัวเอง
+  emp_view_salary:  ['owner','hr_manager','accountant'],
+  username_edit:    ['owner','hr_manager'],
+
+  // การลา
+  leave_approve:    ['owner','hr_manager','dept_head'],   // dept_head อนุมัติทีมตัวเองได้
+  leave_view_all:   ['owner','hr_manager','accountant'],
+  leave_view_dept:  ['owner','hr_manager','dept_head'],
+
+  // การเงิน
+  payroll_view:     ['owner','hr_manager','accountant'],
+  payslip_all:      ['owner','hr_manager','accountant'],
+  salary_view:      ['owner','hr_manager','accountant'],
+  export_report:    ['owner','accountant'],
+
+  // ระบบ
+  device_view_all:  ['owner','hr_manager'],
+  settings_edit:    ['owner','hr_manager'],
+  offices_edit:     ['owner','hr_manager'],
+
+  // dashboard
+  dash_team:        ['owner','hr_manager','dept_head','accountant','employee'],
+  dash_finance:     ['owner','accountant'],
+  dash_full:        ['owner','hr_manager','accountant'],
+};
+
+// custom_permissions จาก DB (โหลดหลัง login)
+let myPerms = {};
+
+function can(action){
+  if(!currentUser) return false;
+  // owner มีทุกสิทธิ์เสมอ
+  if(currentUser.role === 'owner') return true;
+  // ตรวจ custom_permissions ก่อน (ถ้ามี)
+  if(myPerms && action in myPerms) return myPerms[action] === true;
+  // fallback ตาม ACTION_PERMS
+  const allowed = ACTION_PERMS[action];
+  if(!allowed) return true;
+  return allowed.includes(currentUser.role);
+}
+
+function canPage(page){
+  if(!currentUser) return false;
+  if(currentUser.role === 'owner') return true;
+  const allowed = PERMS[page];
+  if(!allowed) return true;
+  if(allowed === '*') return true;
+  return allowed.includes(currentUser.role);
+}
+
+function isHR(){ return currentUser && ['owner','hr_manager'].includes(currentUser.role); }
+function isOwner(){ return currentUser?.role === 'owner'; }
+function isDeptHead(){ return currentUser?.role === 'dept_head'; }
+function isAccountant(){ return currentUser?.role === 'accountant'; }
+
+// โหลด custom permissions หลัง login
+async function loadMyPermissions(){
+  if(!currentUser) return;
+  if(currentUser.role === 'owner'){ myPerms = {}; return; } // owner ใช้ไม่ต้องโหลด
+  try{
+    const{data} = await db.rpc('get_my_permissions',{p_employee_id: currentUser.id});
+    myPerms = data || {};
+  } catch(e){ myPerms = {}; }
+}
+
+// กรองตาม dept ของ dept_head
+function myDept(){ return currentUser?.department || ''; }
+function isSameDept(empDept){ return empDept === myDept(); }
+
+function roleLabel(role){
+  return ROLES[role]?.label || role;
+}
+function roleBadge(role){
+  const r = ROLES[role] || ROLES.employee;
+  return `<span style="background:${r.bg};color:${r.color};padding:2px 9px;border-radius:20px;font-size:10px;font-weight:700">${r.icon} ${r.label}</span>`;
+}
+
+function noAccessHTML(pageName){
+  return `<div class="no-access">
+    <i class="ti ti-lock" aria-hidden="true"></i>
+    <h3>ไม่มีสิทธิ์เข้าถึง</h3>
+    <p>หน้า "<b>${pageName}</b>" ไม่อยู่ในสิทธิ์ของคุณ<br>
+    Role ปัจจุบัน: ${roleBadge(currentUser?.role)}<br><br>
+    ติดต่อ HR เพื่อขอสิทธิ์เพิ่มเติม</p>
+  </div>`;
+}
 
 // ---- LOGIN ----
 // ---- Device Fingerprint ----
@@ -1472,9 +1907,11 @@ async function confirmRemoveDevice(){
   loadMyDevices();
 }
 
-function afterLogin(){
+async function afterLogin(){
   document.getElementById('login-screen').style.display = 'none';
   updateUserUI();
+  await loadMyPermissions(); // โหลด custom permissions ก่อน
+  applyRoleUI();             // แล้วค่อย apply UI
   loadAll();
   showToast('ยินดีต้อนรับ ' + (currentUser.nickname || currentUser.name) + ' 👋');
 }
@@ -1533,18 +1970,43 @@ function updateUserUI(){
 
 function applyRoleUI(){
   if(!currentUser) return;
-  const isHR = ['hr_manager','owner'].includes(currentUser.role);
+  const role = currentUser.role;
 
-  // Desktop sidebar
-  if(!isHR){
-    // ซ่อนเมนูเงินเดือน HR-only
-    document.querySelectorAll('.nav-item').forEach(el => {
-      const txt = el.textContent;
-      if(txt.includes('เงินเดือน') || txt.includes('จัดการสาขา') || txt.includes('ตั้งค่า'))
-        el.style.display = 'none';
-    });
-    // ซ่อน Mobile payslip tab (แสดงแค่ของตัวเอง)
-  }
+  // ===== Sidebar Desktop =====
+  document.querySelectorAll('.nav-item').forEach(el => {
+    const onclick = el.getAttribute('onclick')||'';
+    const page = (onclick.match(/goD\('(\w+)'\)/) || [])[1];
+    if(page && !canPage(page)) el.style.display = 'none';
+    else el.style.display = '';
+  });
+
+  // ===== ปุ่มเพิ่มพนักงาน =====
+  document.querySelectorAll('[onclick="openAddEmpSheet()"]').forEach(el=>{
+    el.style.display = can('emp_add') ? '' : 'none';
+  });
+
+  // ===== แสดง Role Badge ใน sidebar/header =====
+  const r = ROLES[role] || ROLES.employee;
+  const sbRole = document.querySelector('.sb-foot .sb-user div:last-child div:last-child');
+  if(sbRole) sbRole.textContent = r.icon + ' ' + r.label;
+  const chipName = document.getElementById('d-chip-name');
+  if(chipName) chipName.textContent = currentUser.nickname || currentUser.name || 'User';
+
+  // ===== ซ่อนเมนูจัดการอุปกรณ์ ถ้าไม่ใช่ HR =====
+  document.querySelectorAll('.nav-item').forEach(el=>{
+    if(el.textContent.includes('จัดการอุปกรณ์') && !can('device_view_all'))
+      el.style.display = 'none';
+  });
+
+  // ===== Dashboard — ซ่อน section finance ถ้าไม่มีสิทธิ์ =====
+  // (จัดการใน renderDashboardByRole)
+
+  // ===== ปุ่มอนุมัติลา =====
+  // dept_head อนุมัติได้เฉพาะทีมตัวเอง (จัดการใน renderLeavePend)
+
+  // เมนู Permission Manager เฉพาะ owner
+  const permNav = document.getElementById('nav-perm-mgr');
+  if(permNav) permNav.style.display = isOwner() ? '' : 'none';
 }
 
 // ---- SHOW USER SHEET ----
@@ -1692,18 +2154,171 @@ function promptReset(code, name){
 }
 
 // ---- SESSION RESTORE ----
-(function checkSession(){
+(async function checkSession(){
   const saved = sessionStorage.getItem('flowhr_user');
   if(saved){
     try {
       currentUser = JSON.parse(saved);
       document.getElementById('login-screen').style.display = 'none';
       updateUserUI();
+      await loadMyPermissions();
+      applyRoleUI();
     } catch(e) {
       sessionStorage.removeItem('flowhr_user');
     }
   }
 })();
+
+
+// ============================================================
+// EMPLOYEE FORM HELPERS
+// ============================================================
+function toggleResignDate(){
+  const s = document.getElementById('nf-status')?.value;
+  const w = document.getElementById('resign-date-wrap');
+  if(w) w.style.display = (s==='resigned'||s==='terminated') ? 'block' : 'none';
+}
+
+function togglePassVis(inputId, btn){
+  const inp = document.getElementById(inputId);
+  if(!inp) return;
+  const isPass = inp.type === 'password';
+  inp.type = isPass ? 'text' : 'password';
+  btn.querySelector('i').className = isPass ? 'ti ti-eye-off' : 'ti ti-eye';
+}
+
+function showHROnlyFields(){
+  const isHR = currentUser && ['hr_manager','owner'].includes(currentUser.role);
+  const el = document.getElementById('hr-only-section');
+  if(el) el.style.display = isHR ? 'block' : 'none';
+}
+
+// อัปเดต openAddEmpSheet และ openEditEmp ให้ show HR fields
+const _origOpenAdd = openAddEmpSheet;
+function openAddEmpSheet(){
+  _origOpenAdd();
+  showHROnlyFields();
+  toggleResignDate();
+}
+
+// ============================================================
+// PHOTO UPLOAD for employee list (click on avatar in table)
+// ============================================================
+// (รวมกับ triggerPhoto เดิมแล้ว — ใช้ employee id ตรงๆ)
+
+
+// ============================================================
+// PERMISSION MANAGER (Owner Only)
+// ============================================================
+const PERM_LABELS = {
+  view_salary:      { label:'เห็นเงินเดือนคนอื่น',    icon:'ti-cash',          warn:true },
+  view_all_emp:     { label:'เห็นรายชื่อพนักงานทุกคน', icon:'ti-users',          warn:false },
+  edit_emp:         { label:'แก้ไขข้อมูลพนักงาน',      icon:'ti-edit',           warn:true },
+  approve_leave:    { label:'อนุมัติ/ปฏิเสธใบลา',      icon:'ti-check',          warn:false },
+  view_payroll:     { label:'ดู Payroll รวมทั้งบริษัท', icon:'ti-report-money',  warn:true },
+  view_all_payslip: { label:'ดูสลิปเงินเดือนทุกคน',   icon:'ti-receipt',        warn:true },
+  export_report:    { label:'Export รายงานการเงิน',     icon:'ti-download',      warn:false },
+  manage_offices:   { label:'จัดการสาขา/GPS',          icon:'ti-map-pin',        warn:false },
+  manage_settings:  { label:'ตั้งค่าระบบ',              icon:'ti-settings',       warn:true },
+  manage_users:     { label:'จัดการ Username/Password', icon:'ti-key',            warn:true },
+};
+
+let editingEmpId = null;
+let editingPerms = {};
+
+function openPermManager(){
+  if(!isOwner()){ showToast('เฉพาะ Managing Director เท่านั้น'); return; }
+  // populate employee select
+  const sel = document.getElementById('perm-emp-sel');
+  while(sel.options.length > 1) sel.remove(1);
+  emps.filter(e => e.id !== currentUser.id).forEach(e => {
+    const o = document.createElement('option');
+    o.value = e.id;
+    const rInfo = ROLES[e.role] || ROLES.employee;
+    o.textContent = `${rInfo.icon} ${e.first_name||e.name||''} ${e.last_name||''} (${rInfo.label})`;
+    sel.appendChild(o);
+  });
+  document.getElementById('perm-form').style.display = 'none';
+  showSh('perm-mgr');
+}
+
+async function loadEmpPerms(){
+  editingEmpId = document.getElementById('perm-emp-sel').value;
+  if(!editingEmpId){ document.getElementById('perm-form').style.display='none'; return; }
+
+  const emp = emps.find(e=>e.id===editingEmpId);
+  if(!emp) return;
+
+  // โหลด permissions ปัจจุบัน
+  const{data} = await db.rpc('get_my_permissions',{p_employee_id: editingEmpId});
+  editingPerms = data || {};
+
+  // แสดง role info
+  const rInfo = ROLES[emp.role] || ROLES.employee;
+  document.getElementById('perm-role-info').innerHTML = `
+    <div style="display:flex;align-items:center;gap:10px">
+      ${avHTML(emp,40)}
+      <div>
+        <div style="font-weight:600">${emp.first_name||emp.name||''} ${emp.last_name||''}</div>
+        <div style="margin-top:4px">${roleBadge(emp.role)} · ${emp.position||'—'}</div>
+      </div>
+    </div>`;
+
+  // สร้าง toggles
+  const container = document.getElementById('perm-toggles');
+  container.innerHTML = Object.entries(PERM_LABELS).map(([key, info]) => {
+    const isOn = editingPerms[key] === true;
+    return `
+    <div style="display:flex;align-items:center;gap:12px;padding:11px 0;border-bottom:.5px solid #F0F0F0" id="perm-row-${key}">
+      <div style="width:32px;height:32px;background:${isOn?'#E3F2FD':'#F5F7FA'};border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:.2s">
+        <i class="ti ${info.icon}" style="font-size:16px;color:${isOn?'#1565C0':'#B0BEC5'}" aria-hidden="true"></i>
+      </div>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13px;font-weight:500">${info.label}${info.warn?` <span style="font-size:9px;background:#FFEBEE;color:#C62828;padding:1px 6px;border-radius:8px;font-weight:700">sensitive</span>`:''}</div>
+      </div>
+      <label style="position:relative;display:inline-block;width:44px;height:24px;flex-shrink:0;cursor:pointer">
+        <input type="checkbox" id="perm-${key}" ${isOn?'checked':''} onchange="togglePerm('${key}',this.checked)"
+          style="opacity:0;width:0;height:0;position:absolute">
+        <span id="perm-track-${key}" style="position:absolute;inset:0;border-radius:12px;background:${isOn?'#1565C0':'#CFD8DC'};transition:.2s">
+          <span style="position:absolute;top:2px;left:${isOn?'22':'2'}px;width:20px;height:20px;border-radius:50%;background:#fff;transition:.2s;box-shadow:0 1px 4px rgba(0,0,0,.2)"></span>
+        </span>
+      </label>
+    </div>`;
+  }).join('');
+
+  document.getElementById('perm-form').style.display = 'block';
+}
+
+function togglePerm(key, val){
+  editingPerms[key] = val;
+  // อัปเดต UI
+  const row = document.getElementById('perm-row-'+key);
+  if(row){
+    const ico = row.querySelector('i');
+    const track = document.getElementById('perm-track-'+key);
+    const thumb = track?.querySelector('span');
+    const box = ico?.parentElement;
+    if(ico) ico.style.color = val?'#1565C0':'#B0BEC5';
+    if(box) box.style.background = val?'#E3F2FD':'#F5F7FA';
+    if(track) track.style.background = val?'#1565C0':'#CFD8DC';
+    if(thumb) thumb.style.left = val?'22px':'2px';
+  }
+}
+
+async function savePermissions(){
+  if(!editingEmpId){ showToast('เลือกพนักงานก่อน'); return; }
+  const{data,error} = await db.rpc('save_employee_permissions',{
+    p_caller_id:   currentUser.id,
+    p_employee_id: editingEmpId,
+    p_permissions: editingPerms
+  });
+  if(error||!data?.success){ showToast('เกิดข้อผิดพลาด: '+(error?.message||data?.message)); return; }
+  // อัปเดต emps local
+  const e = emps.find(x=>x.id===editingEmpId);
+  if(e) e.custom_permissions = editingPerms;
+  showToast('บันทึกสิทธิ์สำเร็จ ✅');
+  closeSh('perm-mgr');
+}
 
 // ============================================================
 // INIT
@@ -1794,6 +2409,43 @@ function promptReset(code, name){
     <div class="sh-handle"></div>
     <div class="sh-title">จัดการ Username / Password</div>
     <div id="manage-users-list"></div>
+  </div>
+</div>
+
+<!-- ==================== PERMISSION MANAGER SHEET ==================== -->
+<div class="sh-bg" id="sh-perm-mgr" onclick="closeSh('perm-mgr',event)">
+  <div class="sh" style="max-height:90vh">
+    <div class="sh-handle"></div>
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
+      <div style="width:38px;height:38px;background:#FFF3E0;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0">🛡️</div>
+      <div>
+        <div class="sh-title" style="margin:0;font-size:16px">กำหนดสิทธิ์การเข้าถึง</div>
+        <div style="font-size:11px;color:#9E9E9E">เฉพาะ Managing Director</div>
+      </div>
+    </div>
+
+    <!-- เลือกพนักงาน -->
+    <div class="f-group">
+      <label class="f-lbl">เลือกพนักงาน</label>
+      <select class="f-inp f-sel" id="perm-emp-sel" onchange="loadEmpPerms()">
+        <option value="">-- เลือกพนักงาน --</option>
+      </select>
+    </div>
+
+    <div id="perm-form" style="display:none">
+      <!-- แสดง role ปัจจุบัน -->
+      <div id="perm-role-info" style="background:#F5F7FA;border-radius:10px;padding:10px 12px;margin-bottom:14px;font-size:12px"></div>
+
+      <!-- Toggle สิทธิ์ -->
+      <div style="font-size:11px;font-weight:700;color:#546E7A;text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px">สิทธิ์การเข้าถึง</div>
+
+      <div id="perm-toggles" style="display:flex;flex-direction:column;gap:0"></div>
+
+      <button class="btn-fw" style="margin-top:14px" onclick="savePermissions()">
+        <i class="ti ti-device-floppy" aria-hidden="true"></i>บันทึกสิทธิ์
+      </button>
+      <button class="btn-fwo" onclick="closeSh('perm-mgr')">ปิด</button>
+    </div>
   </div>
 </div>
 </body>
