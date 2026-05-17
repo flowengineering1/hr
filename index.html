@@ -451,7 +451,7 @@ input[type=file]{display:none}
     </div>
   </div>
 
-  <div class="login-version">Flow HR v3.67 · © 2026 Flow Engineering and Service Co.,Ltd.</div>
+  <div class="login-version">Flow HR v3.68 · © 2026 Flow Engineering and Service Co.,Ltd.</div>
 </div>
 
 <!-- ============ DESKTOP ============ -->
@@ -1859,7 +1859,7 @@ function renderEmpTable(data){
       <td>
         <div class="emp-actions">
           <button class="btn-icon btn-edit" onclick="openEditEmp('${e.id}')" title="แก้ไข"><i class="ti ti-edit" aria-hidden="true"></i></button>
-          <button class="btn-icon btn-del" onclick="confirmDeleteEmp('${e.id}','${(e.first_name||e.name||'').replace(/'/g,"\'")}')" title="ปิดการใช้งาน"><i class="ti ti-user-off" aria-hidden="true"></i></button>
+          ${['owner','hr_manager'].includes(currentUser?.role) ? `<button class="btn-icon btn-del" data-id="${e.id}" data-name="${(e.first_name||e.name||'').replace(/"/g,'&quot;')}" onclick="confirmDeleteEmp(this.dataset.id,this.dataset.name)" title="ปิดการใช้งาน"><i class="ti ti-user-off" aria-hidden="true"></i></button>` : ''}
         </div>
       </td>
     </tr>`;
@@ -3841,7 +3841,7 @@ async function submitOT(){
 // โหลด OT records
 async function loadOT(){
   let query = db.from('ot_records')
-    .select('*, employees(name,first_name,last_name,department,photo_url)')
+    .select('*, employees!ot_records_employee_id_fkey(name,first_name,last_name,department,photo_url)')
     .order('ot_date', {ascending:false});
 
   // พนักงานดูแค่ตัวเอง
