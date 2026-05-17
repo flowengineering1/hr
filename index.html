@@ -299,6 +299,21 @@ html,body{
 
 input[type=file]{display:none}
 
+
+/* ===== CONFIRM DIALOG ===== */
+.confirm-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:500;align-items:center;justify-content:center;padding:24px}
+.confirm-bg.show{display:flex;animation:fu .2s ease}
+.confirm-box{background:#fff;border-radius:20px;padding:24px;width:100%;max-width:360px;box-shadow:0 20px 60px rgba(0,0,0,.3)}
+.confirm-icon{width:56px;height:56px;border-radius:16px;display:flex;align-items:center;justify-content:center;font-size:26px;margin:0 auto 14px}
+.confirm-title{font-size:17px;font-weight:700;text-align:center;margin-bottom:8px;color:#0F1923}
+.confirm-msg{font-size:13px;color:#6B7280;text-align:center;line-height:1.6;margin-bottom:20px}
+.confirm-actions{display:flex;gap:10px}
+.confirm-actions button{flex:1;padding:12px;border-radius:12px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;border:none;transition:all .15s}
+.confirm-cancel{background:#F3F4F6;color:#374151}
+.confirm-cancel:hover{background:#E5E7EB}
+.confirm-ok{color:#fff}
+.confirm-ok:hover{opacity:.9;transform:translateY(-1px)}
+
 /* ===== NEW DEVICE ALERT ===== */
 .device-alert{position:fixed;top:0;left:0;right:0;z-index:10000;background:#E65100;color:#fff;padding:12px 16px;display:flex;align-items:center;gap:10px;font-size:13px;transform:translateY(-100%);transition:transform .3s ease;box-shadow:0 4px 20px rgba(0,0,0,.3)}
 .device-alert.show{transform:translateY(0)}
@@ -436,7 +451,7 @@ input[type=file]{display:none}
     </div>
   </div>
 
-  <div class="login-version">Flow HR v3.32 · © 2026 Flow Engineering and Service Co.,Ltd.</div>
+  <div class="login-version">Flow HR v3.33 · © 2026 Flow Engineering and Service Co.,Ltd.</div>
 </div>
 
 <!-- ============ DESKTOP ============ -->
@@ -1516,12 +1531,34 @@ function renderLeavePend(){
 }
 
 async function approveLv(id){
-  await db.from('leaves').update({status:'approved'}).eq('id',id);
-  showToast('อนุมัติใบลาแล้ว');await loadLeaves();
+  const l = leaves.find(x=>x.id===id);
+  const name = l?.employees?.first_name || l?.employees?.name || 'พนักงาน';
+  const type = {annual:'พักร้อน',sick:'ป่วย',personal:'กิจ'}[l?.type] || l?.type || '';
+  showConfirm({
+    icon: '✅', iconBg: '#D1FAE5', iconColor: '#065F46',
+    title: 'อนุมัติใบลา',
+    msg: `<b>${name}</b><br>ลา${type} ${l?.start_date||''} – ${l?.end_date||''}<br>${l?.days||1} วัน`,
+    okText: 'อนุมัติ', okColor: '#1A6B2E',
+    onOk: async () => {
+      await db.from('leaves').update({status:'approved'}).eq('id',id);
+      showToast('อนุมัติใบลาแล้ว ✅'); await loadLeaves();
+    }
+  });
 }
 async function rejectLv(id){
-  await db.from('leaves').update({status:'rejected'}).eq('id',id);
-  showToast('ปฏิเสธใบลาแล้ว');await loadLeaves();
+  const l = leaves.find(x=>x.id===id);
+  const name = l?.employees?.first_name || l?.employees?.name || 'พนักงาน';
+  const type = {annual:'พักร้อน',sick:'ป่วย',personal:'กิจ'}[l?.type] || l?.type || '';
+  showConfirm({
+    icon: '❌', iconBg: '#FEE2E2', iconColor: '#991B1B',
+    title: 'ปฏิเสธใบลา',
+    msg: `<b>${name}</b><br>ลา${type} ${l?.start_date||''} – ${l?.end_date||''}<br>${l?.days||1} วัน`,
+    okText: 'ปฏิเสธ', okColor: '#B91C1C',
+    onOk: async () => {
+      await db.from('leaves').update({status:'rejected'}).eq('id',id);
+      showToast('ปฏิเสธใบลาแล้ว'); await loadLeaves();
+    }
+  });
 }
 async function submitLeave(){
   if(!currentUser){ showToast('กรุณา Login ก่อน'); return; }
@@ -1798,11 +1835,17 @@ function openEditEmp(id){
 // ---- Confirm Delete ----
 async function confirmDeleteEmp(id, name){
   const n = name || 'พนักงาน';
-  if(!confirm('ปิดการใช้งาน ' + n + ' ใช่ไหม? (ข้อมูลยังคงอยู่ในระบบ)')) return;
-  const{error}=await db.from('employees').update({is_active:false}).eq('id',id);
-  if(error){showToast('เกิดข้อผิดพลาด');return;}
-  showToast(name+' ปิดการใช้งานแล้ว');
-  await loadEmps();
+  showConfirm({
+    icon: '⚠️', iconBg: '#FEF3C7', iconColor: '#92400E',
+    title: 'ปิดการใช้งาน',
+    msg: `ต้องการปิดการใช้งาน <b>${n}</b> ใช่ไหม?<br><span style="font-size:12px;color:#9CA3AF">ข้อมูลยังคงอยู่ในระบบ สามารถเปิดใช้งานใหม่ได้</span>`,
+    okText: 'ปิดการใช้งาน', okColor: '#B45309',
+    onOk: async () => {
+      const{error}=await db.from('employees').update({is_active:false}).eq('id',id);
+      if(error){showToast('เกิดข้อผิดพลาด');return;}
+      showToast(n+' ปิดการใช้งานแล้ว'); await loadEmps();
+    }
+  });
 }
 function exportCSV(){
   const rows=[['ชื่อ','ตำแหน่ง','แผนก','วันเกิด','วันเริ่มงาน',...(can('salary_view')?['เงินเดือน']:[])],...emps.map(e=>[e.name,e.position,e.department,e.date_of_birth||'',e.start_date||'',...(can('salary_view')?[e.salary||0]:[])])];
@@ -2175,6 +2218,51 @@ window.addEventListener('offline',()=>document.getElementById('offline-bar').cla
 window.addEventListener('online',()=>{document.getElementById('offline-bar').classList.remove('show');showToast('กลับมา Online แล้ว');loadAll();});
 if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
 
+
+
+// ============================================================
+// CONFIRM DIALOG
+// ============================================================
+let _confirmCallback = null;
+
+function showConfirm({ icon, iconBg, iconColor, title, msg, okText, okColor, onOk }){
+  const iconEl   = document.getElementById('confirm-icon');
+  const titleEl  = document.getElementById('confirm-title');
+  const msgEl    = document.getElementById('confirm-msg');
+  const okBtn    = document.getElementById('confirm-ok-btn');
+  const dialog   = document.getElementById('confirm-dialog');
+
+  if(iconEl){
+    iconEl.textContent = icon||'❓';
+    iconEl.style.background = iconBg||'#F3F4F6';
+    iconEl.style.color = iconColor||'#374151';
+  }
+  if(titleEl) titleEl.textContent = title||'ยืนยัน';
+  if(msgEl)   msgEl.innerHTML = msg||'คุณแน่ใจหรือไม่?';
+  if(okBtn){
+    okBtn.textContent = okText||'ยืนยัน';
+    okBtn.style.background = okColor||'#1252A3';
+  }
+  _confirmCallback = onOk;
+  if(dialog) dialog.classList.add('show');
+}
+
+function closeConfirm(){
+  const dialog = document.getElementById('confirm-dialog');
+  if(dialog) dialog.classList.remove('show');
+  _confirmCallback = null;
+}
+
+function runConfirm(){
+  closeConfirm();
+  if(_confirmCallback) _confirmCallback();
+}
+
+// คลิก background ปิด
+document.addEventListener('click', e => {
+  const dialog = document.getElementById('confirm-dialog');
+  if(e.target === dialog) closeConfirm();
+});
 
 // ============================================================
 // AUTH — Login / Logout / Change Password
@@ -2686,19 +2774,25 @@ async function changePass(){
 
 // ---- LOGOUT ----
 function doLogout(){
-  if(!confirm('ต้องการออกจากระบบใช่ไหม?')) return;
-  currentUser = null;
-  sessionStorage.removeItem('flowhr_user');
-  // รีเซ็ต UI
-  document.getElementById('login-user').value = '';
-  document.getElementById('login-pass').value = '';
-  document.getElementById('login-err').textContent = '';
-  document.getElementById('login-user').classList.remove('err');
-  document.getElementById('login-pass').classList.remove('err');
-  document.getElementById('login-btn').disabled = false;
-  document.getElementById('login-btn').innerHTML = '<i class="ti ti-login"></i>เข้าสู่ระบบ';
-  document.getElementById('login-screen').style.display = 'flex';
-  closeSh('change-pass');
+  showConfirm({
+    icon: '👋', iconBg: '#FEE2E2', iconColor: '#991B1B',
+    title: 'ออกจากระบบ',
+    msg: 'ต้องการออกจากระบบใช่ไหม?',
+    okText: 'ออกจากระบบ', okColor: '#B91C1C',
+    onOk: () => {
+      currentUser = null;
+      sessionStorage.removeItem('flowhr_user');
+      document.getElementById('login-user').value = '';
+      document.getElementById('login-pass').value = '';
+      document.getElementById('login-err').textContent = '';
+      document.getElementById('login-user').classList.remove('err');
+      document.getElementById('login-pass').classList.remove('err');
+      document.getElementById('login-btn').disabled = false;
+      document.getElementById('login-btn').innerHTML = '<i class="ti ti-login"></i>เข้าสู่ระบบ';
+      document.getElementById('login-screen').style.display = 'flex';
+      closeSh('change-pass');
+    }
+  });
 }
 
 // ---- HR: Reset Password ----
@@ -3058,17 +3152,35 @@ function renderOT(){
 }
 
 async function approveOT(id){
-  const{error} = await db.from('ot_records').update({status:'approved'}).eq('id',id);
-  if(error){ showToast('เกิดข้อผิดพลาด'); return; }
-  showToast('อนุมัติ OT แล้ว ✅');
-  await loadOT();
+  const o = otRequests.find(x=>x.id===id);
+  const name = o?.employees?.first_name || o?.employees?.name || 'พนักงาน';
+  showConfirm({
+    icon: '⏰', iconBg: '#D1FAE5', iconColor: '#065F46',
+    title: 'อนุมัติ OT',
+    msg: `<b>${name}</b><br>${o?.ot_date||''} · ${(o?.start_time||'').slice(0,5)} – ${(o?.end_time||'').slice(0,5)}<br>เงิน OT <b style="color:#1252A3">฿${(o?.ot_amount||0).toLocaleString('th-TH')}</b>`,
+    okText: 'อนุมัติ OT', okColor: '#1A6B2E',
+    onOk: async () => {
+      const{error} = await db.from('ot_records').update({status:'approved'}).eq('id',id);
+      if(error){ showToast('เกิดข้อผิดพลาด'); return; }
+      showToast('อนุมัติ OT แล้ว ✅'); await loadOT();
+    }
+  });
 }
 
 async function rejectOT(id){
-  const{error} = await db.from('ot_records').update({status:'rejected'}).eq('id',id);
-  if(error){ showToast('เกิดข้อผิดพลาด'); return; }
-  showToast('ปฏิเสธ OT แล้ว');
-  await loadOT();
+  const o = otRequests.find(x=>x.id===id);
+  const name = o?.employees?.first_name || o?.employees?.name || 'พนักงาน';
+  showConfirm({
+    icon: '🚫', iconBg: '#FEE2E2', iconColor: '#991B1B',
+    title: 'ปฏิเสธ OT',
+    msg: `<b>${name}</b><br>${o?.ot_date||''} · ${(o?.start_time||'').slice(0,5)} – ${(o?.end_time||'').slice(0,5)}`,
+    okText: 'ปฏิเสธ', okColor: '#B91C1C',
+    onOk: async () => {
+      const{error} = await db.from('ot_records').update({status:'rejected'}).eq('id',id);
+      if(error){ showToast('เกิดข้อผิดพลาด'); return; }
+      showToast('ปฏิเสธ OT แล้ว'); await loadOT();
+    }
+  });
 }
 
 // ============================================================
@@ -3514,6 +3626,19 @@ async function savePermissions(){
         <i class="ti ti-device-floppy" aria-hidden="true"></i>บันทึกสิทธิ์
       </button>
       <button class="btn-fwo" onclick="closeSh('perm-mgr')">ปิด</button>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== CONFIRM DIALOG ==================== -->
+<div class="confirm-bg" id="confirm-dialog">
+  <div class="confirm-box">
+    <div class="confirm-icon" id="confirm-icon">✅</div>
+    <div class="confirm-title" id="confirm-title">ยืนยัน</div>
+    <div class="confirm-msg" id="confirm-msg">คุณแน่ใจหรือไม่?</div>
+    <div class="confirm-actions">
+      <button class="confirm-cancel" onclick="closeConfirm()">ยกเลิก</button>
+      <button class="confirm-ok" id="confirm-ok-btn" onclick="runConfirm()">ยืนยัน</button>
     </div>
   </div>
 </div>
