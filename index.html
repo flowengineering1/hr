@@ -451,7 +451,7 @@ input[type=file]{display:none}
     </div>
   </div>
 
-  <div class="login-version">Flow HR v3.51 · © 2026 Flow Engineering and Service Co.,Ltd.</div>
+  <div class="login-version">Flow HR v3.52 · © 2026 Flow Engineering and Service Co.,Ltd.</div>
 </div>
 
 <!-- ============ DESKTOP ============ -->
@@ -2043,12 +2043,12 @@ async function saveEmp(){
     // เปลี่ยน password ถ้ากรอก
     const newPass = g('nf-password');
     if(!error && newPass && newPass.length >= 6){
-      await db.rpc('change_password_by_hr',{p_employee_id:editId, p_new_password:newPass}).catch(()=>{});
+      try{ await db.rpc('change_password_by_hr',{p_employee_id:editId, p_new_password:newPass}); }catch(e){}
     }
     // อัปเดต username
     const newUser = (g('nf-username')||'').toLowerCase().trim();
     if(!error && newUser){
-      await db.from('employees').update({username:newUser}).eq('id',editId).catch(()=>{});
+      try{ await db.from('employees').update({username:newUser}).eq('id',editId); }catch(e){}
     }
     if(!error){ showToast('แก้ไข '+fullName+' สำเร็จ ✅'); }
   } else {
@@ -2060,7 +2060,7 @@ async function saveEmp(){
       const upass = g('nf-password') || '';
       if(uname) await db.from('employees').update({username:uname}).eq('id',newEmp.id);
       if(upass && upass.length >= 6){
-        await db.rpc('change_password_by_hr',{p_employee_id:newEmp.id, p_new_password:upass}).catch(()=>{});
+        try{ await db.rpc('change_password_by_hr',{p_employee_id:newEmp.id, p_new_password:upass}); }catch(e){}
       }
     }
     if(!error){ showToast('เพิ่มพนักงาน '+fullName+' สำเร็จ ✅'); }
