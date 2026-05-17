@@ -451,7 +451,7 @@ input[type=file]{display:none}
     </div>
   </div>
 
-  <div class="login-version">Flow HR v3.52 · © 2026 Flow Engineering and Service Co.,Ltd.</div>
+  <div class="login-version">Flow HR v3.62 · © 2026 Flow Engineering and Service Co.,Ltd.</div>
 </div>
 
 <!-- ============ DESKTOP ============ -->
@@ -779,7 +779,7 @@ input[type=file]{display:none}
             <select class="f-inp f-sel" id="d-pr-month" style="width:200px" onchange="renderPayrollTable()"></select>
             <button class="btn-p" onclick="showToast('ประมวลผลเงินเดือนสำเร็จ')"><i class="ti ti-calculator" aria-hidden="true"></i>ประมวลผล</button>
           </div>
-          <table class="emp-table"><thead><tr><th>พนักงาน</th><th>แผนก</th><th>เงินเดือน</th><th style="color:var(--green)">เบี้ยขยัน</th><th>ประกันสังคม</th><th>ภาษี</th><th>รับสุทธิ</th><th>สลิป</th></tr></thead>
+          <table class="emp-table"><thead><tr><th>พนักงาน</th><th>แผนก</th><th>เงินเดือน</th><th style="color:#92400E">OT</th><th style="color:#065F46">เบี้ยขยัน</th><th style="color:var(--red)">หักสาย</th><th>SSO</th><th>ภาษี</th><th style="color:#1D4ED8">สุทธิ</th><th>สลิป</th></tr></thead>
           <tbody id="d-pr-tbody"></tbody></table>
         </div>
       </div>
@@ -2176,32 +2176,204 @@ function initPRSelects(){
   for(let i=0;i<6;i++){const d=new Date(CUR_Y,CUR_M-i,1);const o=document.createElement('option');o.value=d.getMonth()+','+d.getFullYear();o.textContent=MTH_F[d.getMonth()]+' '+d.getFullYear();sel.appendChild(o);}
 }
 function renderPayrollTable(){
-  const total = can('salary_view') ? emps.reduce((s,e)=>s+(e.salary||0),0) : 0;
-  const dilTotal = emps.length * 500; // เบี้ยขยัน max ทุกคน
-  const kpi=document.getElementById('d-pr-kpi');
-  if(kpi)kpi.innerHTML=[
-    {n:'฿'+total.toLocaleString('th-TH'),l:'เงินเดือนรวม',ic:'ti-cash',bg:'#E3F2FD',col:'#1565C0'},
-    {n:'฿'+dilTotal.toLocaleString('th-TH'),l:'เบี้ยขยัน (max)',ic:'ti-star',bg:'#E8F5E9',col:'#2E7D32'},
-    {n:'฿'+Math.min(total*0.05,750*emps.length).toLocaleString('th-TH'),l:'ประกันสังคมรวม',ic:'ti-shield',bg:'#FFF3E0',col:'#E65100'},
-    {n:'฿'+Math.round(total*0.05).toLocaleString('th-TH'),l:'ภาษีประมาณ',ic:'ti-building-bank',bg:'#FFEBEE',col:'#C62828'}
-  ].map(k=>`<div class="kpi-tile"><div class="kpi-ico" style="background:${k.bg};width:42px;height:42px;font-size:21px"><i class="ti ${k.ic}" style="color:${k.col}" aria-hidden="true"></i></div><div><div class="kpi-num" style="font-size:18px">${k.n}</div><div class="kpi-lbl">${k.l}</div></div></div>`).join('');
-  const tbody=document.getElementById('d-pr-tbody');if(!tbody)return;
-  tbody.innerHTML=emps.map(e=>{
-    const sal=e.salary||0;
-    const sso=Math.min(sal*0.05,750);
-    const tax=Math.max(0,((sal*12-160000)*0.05)/12);
-    const dil=500; // เบี้ยขยัน default (ดึงจริงตอน calc)
-    const net=sal+dil-sso-tax;
-    return`<tr>
-      <td><div style="display:flex;align-items:center;gap:10px">${avHTML(e,34)}<div style="font-weight:500">${e.name}</div></div></td>
+  const sel = document.getElementById('d-pr-month');
+  if(sel && sel.options.length===0){
+    for(let i=0;i<6;i++){
+      const d=new Date(CUR_Y,CUR_M-i,1);
+      const o=document.createElement('option');
+      o.value=d.getMonth()+','+d.getFullYear();
+      o.textContent=MTH_F[d.getMonth()]+' '+d.getFullYear();
+      sel.appendChild(o);
+    }
+  }
+  // โหลดข้อมูล OT + attendance แล้วคำนวณ
+  calcPayroll();
+}
+
+// ============================================================
+// SSO & TAX CALCULATION (ตามกฎหมายไทย)
+// ============================================================
+
+// SSO: 5% ของเงินเดือน ฐาน 1,650–17,500 บาท → หัก 83–875 บาท/เดือน
+// (อัปเดตเพดานใหม่ จากเดิม 15,000/750 → 17,500/875)
+function calcSSO(monthlySalary, eligible=true){
+  if(!eligible) return 0;
+  const base = Math.min(Math.max(monthlySalary, 1650), 17500);
+  return Math.round(base * 0.05);
+}
+
+// ภาษีหัก ณ ที่จ่าย (คำนวณต่อเดือน จากเงินได้ทั้งปี)
+function calcTax(monthlySalary, otMonthly=0){
+  const annual = (monthlySalary + otMonthly) * 12;
+
+  // หักค่าใช้จ่าย 50% ไม่เกิน 100,000
+  const expense = Math.min(annual * 0.5, 100000);
+  // หักค่าลดหย่อนส่วนตัว
+  const personal = 60000;
+
+  const netIncome = Math.max(0, annual - expense - personal);
+
+  // อัตราขั้นบันได
+  let tax = 0;
+  const brackets = [
+    {max: 150000,  rate: 0},
+    {max: 300000,  rate: 0.05},
+    {max: 500000,  rate: 0.10},
+    {max: 750000,  rate: 0.15},
+    {max: 1000000, rate: 0.20},
+    {max: 2000000, rate: 0.25},
+    {max: 5000000, rate: 0.30},
+    {max: Infinity,rate: 0.35},
+  ];
+
+  let prev = 0;
+  for(const {max, rate} of brackets){
+    if(netIncome <= prev) break;
+    const taxable = Math.min(netIncome, max) - prev;
+    tax += taxable * rate;
+    prev = max;
+  }
+
+  return Math.round(tax / 12); // หารกลับมาเป็นรายเดือน
+}
+
+async function calcPayroll(){
+  const sel = document.getElementById('d-pr-month');
+  const [m, y] = (sel?.value||CUR_M+','+CUR_Y).split(',').map(Number);
+  const startDate = `${y}-${String(m+1).padStart(2,'0')}-01`;
+  const endDate   = new Date(y, m+1, 0).toISOString().slice(0,10);
+
+  // ดึง OT ที่อนุมัติ
+  const{data: otData} = await db.from('ot_records')
+    .select('employee_id,ot_amount,ot_minutes')
+    .eq('status','approved')
+    .gte('ot_date', startDate)
+    .lte('ot_date', endDate);
+
+  // ดึง attendance เดือนนั้น
+  const{data: attData} = await db.from('attendances')
+    .select('employee_id,check_in,check_out')
+    .gte('check_in', startDate+'T00:00:00')
+    .lte('check_in', endDate+'T23:59:59');
+
+  // ดึง settings
+  const{data: ws} = await db.from('work_settings')
+    .select('work_start,late_after_mins,late_deduct_per_min,diligence_bonus')
+    .limit(1);
+  const workStart     = ws?.[0]?.work_start || '08:00';
+  const lateAfterMins = ws?.[0]?.late_after_mins || 0;
+  const lateRate      = ws?.[0]?.late_deduct_per_min || 1;
+  const dilBonus      = ws?.[0]?.diligence_bonus || 500;
+  const [wh, wm]      = workStart.split(':').map(Number);
+  const workStartMins = wh*60 + wm + lateAfterMins;
+
+  // คำนวณต่อ employee
+  const rows = emps.map(e => {
+    const sal = e.salary||0;
+
+    // รวม OT
+    const myOT = (otData||[]).filter(o=>o.employee_id===e.id);
+    const otAmount = myOT.reduce((s,o)=>s+(o.ot_amount||0), 0);
+    const otMins   = myOT.reduce((s,o)=>s+(o.ot_minutes||0), 0);
+
+    // attendance ในเดือน
+    const myAtt = (attData||[]).filter(a=>a.employee_id===e.id);
+
+    // หักสาย
+    let lateMins = 0, lateDeduct = 0;
+    myAtt.forEach(a => {
+      const ci = new Date(a.check_in);
+      const ciMins = ci.getHours()*60+ci.getMinutes();
+      const late = Math.max(0, ciMins - workStartMins);
+      lateMins += late;
+    });
+    lateDeduct = Math.round(lateMins * lateRate);
+
+    // เบี้ยขยัน — ถ้าสายหรือขาด ไม่ได้
+    // (simplified: ถ้ามีหักสาย > 0 หรือ diligence_eligible=false ไม่ได้)
+    const dil = (e.diligence_eligible!==false && lateMins===0) ? dilBonus : 0;
+
+    // SSO + ภาษี (ตามกฎหมายไทย)
+    const sso = calcSSO(sal, e.sso_eligible!==false);
+    const tax = calcTax(sal, otAmount/12*12);  // OT ต่อเดือน
+    const net   = base + dil - sso - tax - lateDeduct;
+
+    return { e, sal, otAmount, otMins, lateMins, lateDeduct, dil, sso, tax, net };
+  });
+
+  // KPI
+  const eligible = rows.filter(r=>r.e.is_active);
+  const totalSal  = eligible.reduce((s,r)=>s+r.sal,0);
+  const totalOT   = eligible.reduce((s,r)=>s+r.otAmount,0);
+  const totalDil  = eligible.reduce((s,r)=>s+r.dil,0);
+  const totalNet  = eligible.reduce((s,r)=>s+r.net,0);
+
+  const kpi = document.getElementById('d-pr-kpi');
+  if(kpi) kpi.innerHTML = [
+    {n:'฿'+Math.round(totalSal).toLocaleString('th-TH'),  l:'เงินเดือนรวม',  ic:'ti-cash',         bg:'#E3F2FD',col:'#1565C0'},
+    {n:'฿'+Math.round(totalOT).toLocaleString('th-TH'),   l:'OT รวม',         ic:'ti-clock-bolt',   bg:'#FEF3C7',col:'#92400E'},
+    {n:'฿'+Math.round(totalDil).toLocaleString('th-TH'),  l:'เบี้ยขยัน',      ic:'ti-star',         bg:'#D1FAE5',col:'#065F46'},
+    {n:'฿'+Math.round(totalNet).toLocaleString('th-TH'),  l:'จ่ายสุทธิรวม',  ic:'ti-report-money', bg:'#DBEAFE',col:'#1D4ED8'},
+  ].map(k=>`<div class="kpi-tile">
+    <div class="kpi-ico" style="background:${k.bg};width:42px;height:42px;font-size:21px">
+      <i class="ti ${k.ic}" style="color:${k.col}" aria-hidden="true"></i>
+    </div>
+    <div><div class="kpi-num" style="font-size:18px">${k.n}</div><div class="kpi-lbl">${k.l}</div></div>
+  </div>`).join('');
+
+  // ตาราง
+  const tbody = document.getElementById('d-pr-tbody');
+  if(!tbody) return;
+  tbody.innerHTML = rows.map(({e,sal,otAmount,otMins,lateMins,lateDeduct,dil,sso,tax,net}) => {
+    const canSee = canSeeSalary(e.id);
+    const fmt = n => canSee ? '฿'+Math.round(n).toLocaleString('th-TH') : '—';
+    return `<tr>
+      <td>
+        <div style="display:flex;align-items:center;gap:10px">
+          ${avHTML(e,34,false)}
+          <div>
+            <div style="font-weight:500">${e.first_name||e.name||'—'} ${e.last_name||''}</div>
+            <div style="font-size:10px;color:#9E9E9E">${e.employee_code||''}</div>
+          </div>
+        </div>
+      </td>
       <td><span class="badge ${DEPT_CLS[e.department]||'b-blue'}">${e.department||'—'}</span></td>
-      <td>${canSeeSalary(e.id)?'฿'+sal.toLocaleString('th-TH'):'—'}</td>
-      <td style="color:var(--green)">+฿${dil}</td>
-      <td style="color:var(--orange)">-฿${sso.toFixed(0)}</td>
-      <td style="color:var(--orange)">-฿${tax.toFixed(0)}</td>
-      <td style="font-weight:600;color:var(--blue)">฿${Math.round(net).toLocaleString('th-TH')}</td>
-      <td><button onclick="showToast('สลิป ${e.name}')" style="padding:5px 10px;border:.5px solid #E0E0E0;border-radius:7px;background:#fff;font-size:12px;cursor:pointer"><i class="ti ti-receipt" aria-hidden="true"></i></button></td>
-    </tr>`;}).join('')||'<tr><td colspan="8" style="text-align:center;padding:24px;color:#B0BEC5">ไม่มีข้อมูล</td></tr>';
+      <td>${fmt(sal)}</td>
+      <td style="color:#92400E;font-weight:${otAmount>0?'600':'400'}">
+        ${canSee && otAmount>0 ? '+฿'+Math.round(otAmount).toLocaleString('th-TH')+'<div style="font-size:9px;color:#9E9E9E">'+Math.round(otMins/60*10)/10+' ชม.</div>' : canSee?'—':'—'}
+      </td>
+      <td>
+        ${e.diligence_eligible!==false && lateMins===0
+          ? `<span style="color:#065F46;font-weight:600">+฿${dil}</span>`
+          : e.diligence_eligible===false
+            ? `<span style="color:#9CA3AF;font-size:11px">ไม่มีสิทธิ์</span>`
+            : `<span style="color:#9A3412;font-size:11px">สาย ${lateMins} นาที</span>`}
+      </td>
+      <td style="color:var(--red)">
+        ${canSee && lateDeduct>0
+          ? `-฿${lateDeduct.toLocaleString('th-TH')}<div style="font-size:9px;color:#9E9E9E">${lateMins} นาที</div>`
+          : canSee?'—':'—'}
+      </td>
+      <td style="color:var(--red)">${fmt(sso)}</td>
+      <td style="color:var(--red)">${fmt(tax)}</td>
+      <td style="font-weight:700;color:#1D4ED8;font-size:14px">${fmt(net)}</td>
+      <td>
+        <button onclick="gotoPayslip('${e.id}')"
+          style="padding:5px 10px;border:1px solid var(--border);border-radius:7px;background:#fff;font-size:12px;cursor:pointer;color:#1565C0;display:flex;align-items:center;gap:4px">
+          <i class="ti ti-receipt" aria-hidden="true"></i>สลิป
+        </button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function gotoPayslip(empId){
+  // ไปหน้าสลิปพร้อมเลือกพนักงานไว้ให้แล้ว
+  goD('payslip');
+  setTimeout(()=>{
+    const sel = document.getElementById('d-ps-emp');
+    if(sel){ sel.value = empId; renderDPS(); }
+  }, 100);
 }
 
 // ============================================================
