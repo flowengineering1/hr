@@ -1401,8 +1401,7 @@ function openEditEmp(id){
 
 // ---- Confirm Delete ----
 async function confirmDeleteEmp(id, name){
-  if(!confirm('ปิดการใช้งาน '+name+' ใช่ไหม?
-(ข้อมูลยังคงอยู่ในระบบ)')) return;
+  if(!confirm('ปิดการใช้งาน '+name+' ใช่ไหม? (ข้อมูลยังคงอยู่ในระบบ)')) return;
   const{error}=await db.from('employees').update({is_active:false}).eq('id',id);
   if(error){showToast('เกิดข้อผิดพลาด');return;}
   showToast(name+' ปิดการใช้งานแล้ว');
