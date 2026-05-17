@@ -451,7 +451,7 @@ input[type=file]{display:none}
     </div>
   </div>
 
-  <div class="login-version">Flow HR v3.35 · © 2026 Flow Engineering and Service Co.,Ltd.</div>
+  <div class="login-version">Flow HR v3.37 · © 2026 Flow Engineering and Service Co.,Ltd.</div>
 </div>
 
 <!-- ============ DESKTOP ============ -->
@@ -835,7 +835,35 @@ input[type=file]{display:none}
             <i class="ti ti-device-floppy" aria-hidden="true"></i>บันทึกการตั้งค่าทั้งหมด
           </button>
         </div>
+
+        <!-- วันหยุดบริษัท -->
+        <div style="margin-top:16px">
+          <div class="card">
+            <div class="card-hdr" style="margin-bottom:14px">
+              <div class="card-hdr-l"><i class="ti ti-calendar-event" aria-hidden="true"></i>วันหยุดบริษัท</div>
+              <button class="btn-p" style="padding:7px 14px;font-size:12px" onclick="showSh('sh-add-holiday')">
+                <i class="ti ti-plus" aria-hidden="true"></i>เพิ่มวันหยุด
+              </button>
+            </div>
+            <div style="font-size:11px;color:#6B7280;margin-bottom:12px">
+              วันหยุดพิเศษของบริษัท (นอกเหนือจากวันหยุดนักขัตฤกษ์) · OT ในวันนี้คิด ×3.0
+            </div>
+            <div id="company-holidays-list">
+              <div style="text-align:center;color:#B0BEC5;padding:20px;font-size:12px">กำลังโหลด...</div>
+            </div>
+          </div>
+
+          <!-- วันหยุดนักขัตฤกษ์ปีนี้ (ดูอย่างเดียว) -->
+          <div class="card">
+            <div class="card-hdr">
+              <div class="card-hdr-l"><i class="ti ti-flag" aria-hidden="true"></i>วันหยุดนักขัตฤกษ์ 2026</div>
+              <span class="badge b-blue" id="pub-holiday-count">0 วัน</span>
+            </div>
+            <div id="public-holidays-list" style="max-height:240px;overflow-y:auto"></div>
+          </div>
+        </div>
       </div>
+    </div>
 
       <!-- PROFILE -->
       <div id="dp-profile" class="page">
@@ -1315,7 +1343,7 @@ function goD(p){
   if(p==='payslip'){initPSSelects('d');renderDPS();}
   if(p==='offices')renderOfficesList();
   if(p==='orgchart')renderOrgChart();
-  if(p==='settings')loadSettings();
+  if(p==='settings'){ loadSettings(); loadHolidays(); }
   if(p==='ot'){loadOT();}
 }
 function goM(p){
@@ -2174,12 +2202,16 @@ async function deleteOff(id, name){
     msg: `ต้องการลบสาขา <b>${name}</b> ใช่ไหม?<br><span style="font-size:12px;color:#9CA3AF">พนักงานที่ผูกกับสาขานี้จะไม่สามารถเช็คอินได้</span>`,
     okText: 'ลบสาขา', okColor: '#B91C1C',
     onOk: async () => {
+      // ลองลบตรงๆ ก่อน
       const{error} = await db.from('offices').delete().eq('id', id);
-      if(error){ showToast('เกิดข้อผิดพลาด: '+error.message); return; }
+      if(error){
+        // ถ้าลบไม่ได้ (RLS) → ลองตั้ง is_active=false แทน
+        const{error:e2} = await db.from('offices').update({is_active:false}).eq('id',id);
+        if(e2){ showToast('เกิดข้อผิดพลาด: '+(error.message||e2.message)); return; }
+      }
       showToast('ลบสาขา '+name+' แล้ว ✅');
-      // โหลดใหม่
-      const{data} = await db.from('offices').select('*');
-      offices = data||[];
+      // ลบออกจาก array ทันที ไม่ต้องรอ reload
+      offices = offices.filter(o=>o.id !== id);
       renderOfficesList();
     }
   });
@@ -2257,6 +2289,164 @@ window.addEventListener('online',()=>{document.getElementById('offline-bar').cla
 if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
 
 
+
+
+// ============================================================
+// COMPANY HOLIDAYS
+// ============================================================
+let companyHolidays = [];
+let publicHolidays  = [];
+
+async function loadHolidays(){
+  const yr = new Date().getFullYear();
+
+  // วันหยุดบริษัท
+  const{data:ch} = await db.from('company_holidays')
+    .select('*').order('holiday_date');
+  companyHolidays = ch||[];
+
+  // วันหยุดนักขัตฤกษ์ปีนี้
+  const{data:ph} = await db.from('public_holidays')
+    .select('*').eq('year', yr).order('holiday_date');
+  publicHolidays = ph||[];
+
+  renderHolidays();
+}
+
+function renderHolidays(){
+  // วันหยุดบริษัท
+  const el = document.getElementById('company-holidays-list');
+  if(el){
+    if(!companyHolidays.length){
+      el.innerHTML = '<div style="text-align:center;color:#B0BEC5;padding:20px;font-size:12px">ยังไม่มีวันหยุดบริษัท</div>';
+    } else {
+      el.innerHTML = companyHolidays.map(h => {
+        const d = new Date(h.holiday_date);
+        const dayName = ['อา','จ','อ','พ','พฤ','ศ','ส'][d.getDay()];
+        const dateStr = d.toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'2-digit'});
+        return `
+        <div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid #F1F5F9">
+          <div style="width:44px;height:44px;background:#FEE2E2;border-radius:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;flex-shrink:0">
+            <div style="font-size:9px;font-weight:700;color:#991B1B">${dayName}</div>
+            <div style="font-size:15px;font-weight:700;color:#991B1B;line-height:1">${d.getDate()}</div>
+          </div>
+          <div style="flex:1;min-width:0">
+            <div style="font-size:13px;font-weight:600">${h.name}</div>
+            <div style="font-size:11px;color:#6B7280;margin-top:2px">
+              ${dateStr}
+              ${h.note?'· '+h.note:''}
+            </div>
+          </div>
+          <div style="display:flex;gap:6px;flex-shrink:0">
+            <button class="btn-icon btn-edit" onclick="editHoliday('${h.id}')" title="แก้ไข">
+              <i class="ti ti-edit" aria-hidden="true"></i>
+            </button>
+            <button class="btn-icon btn-del" onclick="deleteHoliday('${h.id}','${h.name}')" title="ลบ">
+              <i class="ti ti-trash" aria-hidden="true"></i>
+            </button>
+          </div>
+        </div>`;
+      }).join('');
+    }
+  }
+
+  // วันหยุดนักขัตฤกษ์
+  const pel = document.getElementById('public-holidays-list');
+  const pcnt= document.getElementById('pub-holiday-count');
+  if(pcnt) pcnt.textContent = publicHolidays.length + ' วัน';
+  if(pel){
+    pel.innerHTML = publicHolidays.map(h => {
+      const d = new Date(h.holiday_date);
+      const dayName = ['อา','จ','อ','พ','พฤ','ศ','ส'][d.getDay()];
+      const dateStr = d.toLocaleDateString('th-TH',{day:'numeric',month:'long'});
+      const isPast  = d < new Date();
+      return `
+      <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #F1F5F9;opacity:${isPast?'0.5':'1'}">
+        <div style="width:36px;height:36px;background:${isPast?'#F3F4F6':'#DBEAFE'};border-radius:8px;display:flex;flex-direction:column;align-items:center;justify-content:center;flex-shrink:0">
+          <div style="font-size:8px;font-weight:700;color:${isPast?'#9CA3AF':'#1D4ED8'}">${dayName}</div>
+          <div style="font-size:13px;font-weight:700;color:${isPast?'#9CA3AF':'#1D4ED8'};line-height:1">${d.getDate()}</div>
+        </div>
+        <div style="flex:1">
+          <div style="font-size:12px;font-weight:500">${h.name||h.name_en||'—'}</div>
+          <div style="font-size:10px;color:#9CA3AF">${dateStr}</div>
+        </div>
+        ${isPast?'<span class="badge b-gray" style="font-size:9px">ผ่านแล้ว</span>':''}
+      </div>`;
+    }).join('') || '<div style="text-align:center;color:#B0BEC5;padding:16px;font-size:12px">ไม่มีข้อมูล</div>';
+  }
+}
+
+// เปิดฟอร์มเพิ่มวันหยุด
+function showAddHoliday(){
+  document.getElementById('hol-edit-id').value = '';
+  document.getElementById('sh-holiday-title').textContent = 'เพิ่มวันหยุดบริษัท';
+  document.getElementById('hol-date').value = '';
+  document.getElementById('hol-name').value = '';
+  document.getElementById('hol-note').value = '';
+  document.getElementById('hol-type').value = 'company';
+  showSh('sh-add-holiday');
+}
+
+// แก้ไขวันหยุด
+function editHoliday(id){
+  const h = companyHolidays.find(x=>x.id===id); if(!h) return;
+  document.getElementById('hol-edit-id').value = h.id;
+  document.getElementById('sh-holiday-title').textContent = 'แก้ไขวันหยุด';
+  document.getElementById('hol-date').value = h.holiday_date;
+  document.getElementById('hol-name').value = h.name||'';
+  document.getElementById('hol-note').value = h.note||'';
+  document.getElementById('hol-type').value = h.type||'company';
+  showSh('sh-add-holiday');
+}
+
+// บันทึกวันหยุด (เพิ่ม/แก้ไข)
+async function saveHoliday(){
+  const editId = document.getElementById('hol-edit-id').value;
+  const date   = document.getElementById('hol-date').value;
+  const name   = document.getElementById('hol-name').value.trim();
+  const note   = document.getElementById('hol-note').value.trim();
+  const type   = document.getElementById('hol-type').value;
+
+  if(!date){ showToast('กรุณาเลือกวันที่'); return; }
+  if(!name){ showToast('กรุณาใส่ชื่อวันหยุด'); return; }
+
+  const payload = {
+    holiday_date: date,
+    name:         name,
+    note:         note||null,
+    type:         type,
+    is_active:    true,
+    year:         new Date(date).getFullYear(),
+  };
+
+  let error;
+  if(editId){
+    ({error} = await db.from('company_holidays').update(payload).eq('id', editId));
+  } else {
+    ({error} = await db.from('company_holidays').insert(payload));
+  }
+
+  if(error){ showToast('เกิดข้อผิดพลาด: '+error.message); return; }
+  showToast((editId?'แก้ไข':'เพิ่ม')+' วันหยุด '+name+' สำเร็จ ✅');
+  closeSh('sh-add-holiday');
+  await loadHolidays();
+}
+
+// ลบวันหยุด
+async function deleteHoliday(id, name){
+  showConfirm({
+    icon: '🗑️', iconBg: '#FEE2E2', iconColor: '#991B1B',
+    title: 'ลบวันหยุด',
+    msg: `ต้องการลบ <b>${name}</b> ใช่ไหม?`,
+    okText: 'ลบ', okColor: '#B91C1C',
+    onOk: async () => {
+      const{error} = await db.from('company_holidays').delete().eq('id', id);
+      if(error){ showToast('เกิดข้อผิดพลาด'); return; }
+      showToast('ลบวันหยุด '+name+' แล้ว');
+      await loadHolidays();
+    }
+  });
+}
 
 // ============================================================
 // CONFIRM DIALOG
@@ -3602,6 +3792,43 @@ async function savePermissions(){
       <i class="ti ti-send" aria-hidden="true"></i>ส่งคำขอ OT
     </button>
     <button class="btn-fwo" onclick="closeSh('ot-request')">ยกเลิก</button>
+  </div>
+</div>
+
+<!-- ==================== ADD COMPANY HOLIDAY SHEET ==================== -->
+<div class="sh-bg" id="sh-add-holiday" onclick="closeSh('sh-add-holiday',event)">
+  <div class="sh">
+    <div class="sh-handle"></div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+      <div class="sh-title" style="margin:0" id="sh-holiday-title">เพิ่มวันหยุดบริษัท</div>
+      <button onclick="closeSh('sh-add-holiday')" style="background:none;border:none;cursor:pointer;color:#9E9E9E;font-size:22px"><i class="ti ti-x"></i></button>
+    </div>
+
+    <div class="f-group">
+      <label class="f-lbl">วันที่หยุด *</label>
+      <input type="date" class="f-inp" id="hol-date">
+    </div>
+    <div class="f-group">
+      <label class="f-lbl">ชื่อวันหยุด *</label>
+      <input class="f-inp" id="hol-name" placeholder="เช่น วันปิดบริษัทประจำปี">
+    </div>
+    <div class="f-group">
+      <label class="f-lbl">ประเภท</label>
+      <select class="f-inp f-sel" id="hol-type">
+        <option value="company">วันหยุดบริษัท</option>
+        <option value="national">วันหยุดนักขัตฤกษ์</option>
+      </select>
+    </div>
+    <div class="f-group">
+      <label class="f-lbl">หมายเหตุ</label>
+      <input class="f-inp" id="hol-note" placeholder="รายละเอียดเพิ่มเติม (ถ้ามี)">
+    </div>
+    <input type="hidden" id="hol-edit-id">
+
+    <button class="btn-fw" onclick="saveHoliday()">
+      <i class="ti ti-calendar-plus" aria-hidden="true"></i>บันทึกวันหยุด
+    </button>
+    <button class="btn-fwo" onclick="closeSh('sh-add-holiday')">ยกเลิก</button>
   </div>
 </div>
 
