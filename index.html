@@ -407,7 +407,7 @@ input[type=file]{display:none}
     </div>
   </div>
 
-  <div class="login-version">Flow HR v3.11 · © 2026 Flow Engineering and Service Co.,Ltd.</div>
+  <div class="login-version">Flow HR v3.12 · © 2026 Flow Engineering and Service Co.,Ltd.</div>
 </div>
 
 <!-- ============ DESKTOP ============ -->
@@ -1596,43 +1596,42 @@ function switchEmpTab(tab){
 
 // ---- Open Add ----
 function openAddEmpSheet(){
-  document.getElementById('nf-edit-id').value='';
-  document.getElementById('sh-emp-title').textContent='เพิ่มพนักงานใหม่';
-  // clear fields
-  ['nf-title','nf-firstname','nf-lastname','nf-firstname-en','nf-lastname-en',
-   'nf-nickname','nf-dob','nf-national-id','nf-code','nf-pos','nf-dept',
-   'nf-start','nf-probation','nf-salary','nf-username','nf-password',
-   'nf-bank-name','nf-bank-account','nf-bank-branch','nf-phone','nf-email',
-   'nf-line','nf-address','nf-emer-name','nf-emer-phone'].forEach(id=>{
-    const el=document.getElementById(id); if(el) el.value='';
-  });
-  const av=document.getElementById('sh-new-av');
-  if(av) av.innerHTML='<div class="ini"><i class="ti ti-camera" style="font-size:28px;color:#9E9E9E"></i></div><div class="cam-overlay"><i class="ti ti-camera" style="color:#fff;font-size:20px"></i></div>';
-  newEmpPhoto=null;
-  // ซ่อน/แสดง field เงินเดือนตามสิทธิ์
-  const salaryFields = ['nf-salary','nf-salary-type'];
-  const canEdit = canSeeSalary(e.id);
-  salaryFields.forEach(fid => {
-    const el = document.getElementById(fid);
-    if(el){
-      el.disabled = !canEdit;
-      el.style.background = canEdit ? '' : '#F5F5F5';
-      el.style.color = canEdit ? '' : '#B0BEC5';
-      if(!canEdit) el.value = canEdit ? el.value : '';
-    }
-  });
-  // ซ่อน label เงินเดือนถ้าไม่มีสิทธิ์
-  const salaryWrap = document.getElementById('salary-field-wrap');
-  if(salaryWrap) salaryWrap.style.display = canEdit ? '' : 'none';
+  document.getElementById('nf-edit-id').value = '';
+  document.getElementById('sh-emp-title').textContent = 'เพิ่มพนักงานใหม่';
 
-  // สถานะ
-  let status = 'active';
-  if(!e.is_active && e.end_date) status = 'resigned';
-  else if(!e.is_active) status = 'terminated';
-  else if(e.probation_end && new Date(e.probation_end) >= TODAY) status = 'probation';
-  set('nf-status', status);
-  set('nf-end-date', e.end_date||'');
-  toggleResignDate();
+  // clear ทุก field
+  ['nf-title','nf-firstname','nf-lastname','nf-firstname-en','nf-lastname-en',
+   'nf-nickname','nf-dob','nf-national-id','nf-gender',
+   'nf-code','nf-pos','nf-dept','nf-start','nf-probation',
+   'nf-salary-type','nf-salary','nf-status','nf-end-date',
+   'nf-role','nf-username','nf-password',
+   'nf-bank-name','nf-bank-account','nf-bank-branch','nf-bank-type','nf-sso',
+   'nf-phone','nf-email','nf-line','nf-address','nf-emer-name','nf-emer-phone'
+  ].forEach(id=>{
+    const el = document.getElementById(id);
+    if(!el) return;
+    if(el.tagName === 'SELECT') el.selectedIndex = 0;
+    else el.value = '';
+    el.disabled = false;
+    el.style.background = '';
+    el.style.color = '';
+  });
+
+  // reset รูป
+  const av = document.getElementById('sh-new-av');
+  if(av) av.innerHTML = '<div class="ini"><i class="ti ti-camera" style="font-size:28px;color:#9E9E9E"></i></div>';
+  newEmpPhoto = null;
+
+  // salary field — เฉพาะ owner/hr_manager เท่านั้น
+  const canEditSalary = ['owner','hr_manager'].includes(currentUser?.role);
+  const salaryWrap = document.getElementById('salary-field-wrap');
+  if(salaryWrap) salaryWrap.style.display = canEditSalary ? '' : 'none';
+
+  // reset resign date
+  const resignWrap = document.getElementById('resign-date-wrap');
+  if(resignWrap) resignWrap.style.display = 'none';
+
+  // แสดง HR-only section
   showHROnlyFields();
   switchEmpTab('basic');
   showSh('add-emp');
