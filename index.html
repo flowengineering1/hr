@@ -407,7 +407,7 @@ input[type=file]{display:none}
     </div>
   </div>
 
-  <div class="login-version">Flow HR v2.0 · © 2026 Flow Engineering and Service Co.,Ltd.</div>
+  <div class="login-version">Flow HR v3.04 · © 2026 Flow Engineering and Service Co.,Ltd.</div>
 </div>
 
 <!-- ============ DESKTOP ============ -->
@@ -430,6 +430,8 @@ input[type=file]{display:none}
       <div class="nav-grp">การเงิน</div>
       <div class="nav-item" onclick="goD('payroll')"><i class="ti ti-cash" aria-hidden="true"></i>เงินเดือน</div>
       <div class="nav-item" onclick="goD('payslip')"><i class="ti ti-receipt" aria-hidden="true"></i>สลิปเงินเดือน</div>
+      <div class="nav-grp">องค์กร</div>
+      <div class="nav-item" onclick="goD('orgchart')"><i class="ti ti-sitemap" aria-hidden="true"></i>Org Chart</div>
       <div class="nav-grp">ระบบ</div>
       <div class="nav-item" onclick="goD('offices')"><i class="ti ti-map-pin" aria-hidden="true"></i>จัดการสาขา</div>
       <div class="nav-item" onclick="showManageUsers()"><i class="ti ti-devices" aria-hidden="true"></i>จัดการอุปกรณ์</div>
@@ -821,27 +823,217 @@ input[type=file]{display:none}
 
 <!-- SHEETS -->
 <div class="sh-bg" id="sh-add-emp" onclick="closeSh('add-emp',event)">
-  <div class="sh">
-    <div class="sh-handle"></div><div class="sh-title">เพิ่มพนักงานใหม่</div>
-    <div style="text-align:center;margin-bottom:16px">
-      <div class="av" id="sh-new-av" style="width:80px;height:80px;background:#F0F4F8;margin:0 auto;cursor:pointer" onclick="triggerPhoto('new')">
-        <div class="ini"><i class="ti ti-camera" style="font-size:28px;color:#9E9E9E" aria-hidden="true"></i></div>
+  <div class="sh" style="max-height:92vh">
+    <div class="sh-handle"></div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+      <div class="sh-title" style="margin:0;font-size:16px" id="sh-emp-title">เพิ่มพนักงานใหม่</div>
+      <button onclick="closeSh('add-emp')" style="background:none;border:none;cursor:pointer;color:#9E9E9E;font-size:22px;line-height:1"><i class="ti ti-x"></i></button>
+    </div>
+
+    <!-- รูปโปรไฟล์ -->
+    <div style="text-align:center;margin-bottom:14px">
+      <div class="av av-upload-wrap" id="sh-new-av"
+        style="width:72px;height:72px;background:#F0F4F8;margin:0 auto;cursor:pointer"
+        onclick="triggerPhoto('new')">
+        <div class="ini"><i class="ti ti-camera" style="font-size:24px;color:#9E9E9E"></i></div>
+        <div class="av-cam"><i class="ti ti-camera"></i></div>
       </div>
-      <div style="font-size:11px;color:#9E9E9E;margin-top:6px">แตะเพื่อเพิ่มรูป</div>
+      <div style="font-size:10px;color:#9E9E9E;margin-top:4px">แตะเพื่อเพิ่มรูป</div>
     </div>
-    <div class="f-group"><label class="f-lbl">ชื่อ-นามสกุล *</label><input class="f-inp" id="nf-name" placeholder="สมชาย ใจดี"></div>
-    <div class="f-group"><label class="f-lbl">ตำแหน่ง</label><input class="f-inp" id="nf-pos" placeholder="วิศวกร"></div>
-    <div class="f-group"><label class="f-lbl">แผนก</label>
-      <select class="f-inp f-sel" id="nf-dept"><option>HR</option><option>บัญชี</option><option>IT</option><option>การตลาด</option><option>วิศวกรรม</option><option>ปฏิบัติการ</option><option>ช่างเทคนิค</option></select>
+
+    <!-- Tabs -->
+    <div class="emp-tabs" style="margin-bottom:12px">
+      <div class="emp-tab act" onclick="switchEmpTab('basic')">ทั่วไป</div>
+      <div class="emp-tab" onclick="switchEmpTab('work')">จ้างงาน</div>
+      <div class="emp-tab" onclick="switchEmpTab('bank')">ธนาคาร</div>
+      <div class="emp-tab" onclick="switchEmpTab('contact')">ติดต่อ</div>
     </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-      <div class="f-group"><label class="f-lbl">วันเกิด</label><input type="date" class="f-inp" id="nf-dob"></div>
-      <div class="f-group"><label class="f-lbl">วันเริ่มงาน</label><input type="date" class="f-inp" id="nf-start"></div>
+
+    <!-- TAB: ทั่วไป -->
+    <div id="etab-basic">
+      <div class="form-grid2">
+        <div class="f-group"><label class="f-lbl">คำนำหน้า</label>
+          <select class="f-inp f-sel" id="nf-title">
+            <option value="">--</option>
+            <option>นาย</option><option>นาง</option><option>นางสาว</option>
+          </select>
+        </div>
+        <div class="f-group"><label class="f-lbl">ชื่อเล่น</label>
+          <input class="f-inp" id="nf-nickname" placeholder="ชื่อเล่น">
+        </div>
+      </div>
+      <div class="form-grid2">
+        <div class="f-group"><label class="f-lbl">ชื่อ (ไทย) *</label>
+          <input class="f-inp" id="nf-firstname" placeholder="ชื่อ">
+        </div>
+        <div class="f-group"><label class="f-lbl">นามสกุล (ไทย) *</label>
+          <input class="f-inp" id="nf-lastname" placeholder="นามสกุล">
+        </div>
+      </div>
+      <div class="form-grid2">
+        <div class="f-group"><label class="f-lbl">First Name (EN)</label>
+          <input class="f-inp" id="nf-firstname-en" placeholder="Firstname">
+        </div>
+        <div class="f-group"><label class="f-lbl">Last Name (EN)</label>
+          <input class="f-inp" id="nf-lastname-en" placeholder="Lastname">
+        </div>
+      </div>
+      <div class="form-grid2">
+        <div class="f-group"><label class="f-lbl">วันเกิด</label>
+          <input type="date" class="f-inp" id="nf-dob">
+        </div>
+        <div class="f-group"><label class="f-lbl">เพศ</label>
+          <select class="f-inp f-sel" id="nf-gender">
+            <option value="">--</option>
+            <option value="male">ชาย</option>
+            <option value="female">หญิง</option>
+          </select>
+        </div>
+      </div>
+      <div class="f-group"><label class="f-lbl">เลขบัตรประชาชน</label>
+        <input class="f-inp" id="nf-national-id" placeholder="0-0000-00000-00-0" maxlength="17">
+      </div>
     </div>
-    <div class="f-group"><label class="f-lbl">เงินเดือน (บาท)</label><input type="number" class="f-inp" id="nf-salary" placeholder="0"></div>
-    <div class="f-group"><label class="f-lbl">อีเมล</label><input type="email" class="f-inp" id="nf-email" placeholder="email@flow.co.th"></div>
-    <button class="btn-fw" onclick="saveEmp()"><i class="ti ti-check" aria-hidden="true"></i>บันทึก</button>
-    <button class="btn-fwo" onclick="closeSh('add-emp')">ยกเลิก</button>
+
+    <!-- TAB: จ้างงาน -->
+    <div id="etab-work" style="display:none">
+      <div class="form-grid2">
+        <div class="f-group"><label class="f-lbl">รหัสพนักงาน</label>
+          <input class="f-inp" id="nf-code" placeholder="FLOW-011">
+        </div>
+        <div class="f-group"><label class="f-lbl">ตำแหน่ง</label>
+          <input class="f-inp" id="nf-pos" placeholder="ตำแหน่ง">
+        </div>
+      </div>
+      <div class="f-group"><label class="f-lbl">แผนก</label>
+        <select class="f-inp f-sel" id="nf-dept">
+          <option value="">-- เลือกแผนก --</option>
+          <option>บริหาร</option><option>แผนกขายและการตลาด</option>
+          <option>ผลิต</option><option>คลังสินค้า</option>
+          <option>บัญชี</option><option>IT</option><option>ช่างเทคนิค</option>
+        </select>
+      </div>
+      <div class="form-grid2">
+        <div class="f-group"><label class="f-lbl">วันเริ่มงาน *</label>
+          <input type="date" class="f-inp" id="nf-start">
+        </div>
+        <div class="f-group"><label class="f-lbl">สิ้นสุดทดลองงาน</label>
+          <input type="date" class="f-inp" id="nf-probation">
+        </div>
+      </div>
+      <div class="form-grid2">
+        <div class="f-group"><label class="f-lbl">ประเภท</label>
+          <select class="f-inp f-sel" id="nf-salary-type">
+            <option value="monthly">รายเดือน</option>
+            <option value="daily">รายวัน</option>
+          </select>
+        </div>
+        <div class="f-group"><label class="f-lbl">เงินเดือน / ค่าจ้างวันละ (฿)</label>
+          <input type="number" class="f-inp" id="nf-salary" placeholder="0">
+        </div>
+      </div>
+      <div class="f-group"><label class="f-lbl">สถานะการทำงาน</label>
+        <select class="f-inp f-sel" id="nf-status" onchange="toggleResignDate()">
+          <option value="active">ทำงานอยู่</option>
+          <option value="probation">ทดลองงาน</option>
+          <option value="resigned">ลาออก</option>
+          <option value="terminated">เลิกจ้าง</option>
+        </select>
+      </div>
+      <div id="resign-date-wrap" style="display:none">
+        <div class="f-group"><label class="f-lbl">วันที่ออกจากงาน</label>
+          <input type="date" class="f-inp" id="nf-end-date">
+        </div>
+      </div>
+      <!-- HR Only -->
+      <div id="hr-only-section" style="display:none">
+        <div class="hr-only-field">
+          <div class="hr-only-lbl"><i class="ti ti-shield"></i> HR / Owner เท่านั้น</div>
+          <div class="f-group"><label class="f-lbl">สิทธิ์ระบบ</label>
+            <select class="f-inp f-sel" id="nf-role">
+              <option value="employee">พนักงานทั่วไป</option>
+              <option value="dept_head">หัวหน้าแผนก</option>
+              <option value="accountant">บัญชี</option>
+              <option value="hr_manager">HR Manager</option>
+              <option value="owner">Owner</option>
+            </select>
+          </div>
+          <div class="form-grid2">
+            <div class="f-group"><label class="f-lbl">Username</label>
+              <input class="f-inp" id="nf-username" placeholder="username" autocapitalize="none" autocorrect="off">
+            </div>
+            <div class="f-group"><label class="f-lbl">Password ใหม่</label>
+              <input type="password" class="f-inp" id="nf-password" placeholder="เว้นว่างถ้าไม่เปลี่ยน">
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB: ธนาคาร -->
+    <div id="etab-bank" style="display:none">
+      <div class="f-group"><label class="f-lbl">ธนาคาร</label>
+        <select class="f-inp f-sel" id="nf-bank-name">
+          <option value="">-- เลือก --</option>
+          <option>ธ.กสิกรไทย</option><option>ธ.ไทยพาณิชย์</option>
+          <option>ธ.กรุงเทพ</option><option>ธ.กรุงไทย</option>
+          <option>ธ.ทหารไทยธนชาต</option><option>ธ.กรุงศรีอยุธยา</option>
+          <option>ธ.ออมสิน</option>
+        </select>
+      </div>
+      <div class="f-group"><label class="f-lbl">เลขที่บัญชี</label>
+        <input class="f-inp" id="nf-bank-account" placeholder="000-0-00000-0">
+      </div>
+      <div class="form-grid2">
+        <div class="f-group"><label class="f-lbl">ประเภทบัญชี</label>
+          <select class="f-inp f-sel" id="nf-bank-type">
+            <option value="savings">ออมทรัพย์</option>
+            <option value="current">กระแสรายวัน</option>
+          </select>
+        </div>
+        <div class="f-group"><label class="f-lbl">สาขา</label>
+          <input class="f-inp" id="nf-bank-branch" placeholder="สาขา">
+        </div>
+      </div>
+      <div class="f-group"><label class="f-lbl">สิทธิ์ประกันสังคม</label>
+        <select class="f-inp f-sel" id="nf-sso">
+          <option value="true">ขึ้นสิทธิ์</option>
+          <option value="false">ไม่ขึ้นสิทธิ์</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- TAB: ติดต่อ -->
+    <div id="etab-contact" style="display:none">
+      <div class="f-group"><label class="f-lbl">เบอร์มือถือ</label>
+        <input type="tel" class="f-inp" id="nf-phone" placeholder="08X-XXX-XXXX">
+      </div>
+      <div class="f-group"><label class="f-lbl">อีเมล</label>
+        <input type="email" class="f-inp" id="nf-email" placeholder="email@flow.co.th">
+      </div>
+      <div class="f-group"><label class="f-lbl">Line ID</label>
+        <input class="f-inp" id="nf-line" placeholder="@lineid">
+      </div>
+      <div class="f-group"><label class="f-lbl">ที่อยู่</label>
+        <textarea class="f-inp" rows="2" id="nf-address" placeholder="ที่อยู่"></textarea>
+      </div>
+      <div class="form-grid2">
+        <div class="f-group"><label class="f-lbl">ผู้ติดต่อฉุกเฉิน</label>
+          <input class="f-inp" id="nf-emer-name" placeholder="ชื่อ">
+        </div>
+        <div class="f-group"><label class="f-lbl">เบอร์ฉุกเฉิน</label>
+          <input type="tel" class="f-inp" id="nf-emer-phone" placeholder="08X-XXX-XXXX">
+        </div>
+      </div>
+    </div>
+
+    <input type="hidden" id="nf-edit-id">
+    <div style="display:flex;gap:8px;margin-top:14px">
+      <button class="btn-fw" style="margin:0;flex:1" onclick="saveEmp()">
+        <i class="ti ti-check"></i>บันทึก
+      </button>
+      <button class="btn-fwo" style="flex:0 0 auto" onclick="closeSh('add-emp')">ยกเลิก</button>
+    </div>
   </div>
 </div>
 
@@ -1417,19 +1609,101 @@ function exportCSV(){
 // ADD EMPLOYEE
 // ============================================================
 async function saveEmp(){
-  const name=document.getElementById('nf-name').value.trim();if(!name){showToast('กรุณากรอกชื่อ');return;}
-  const dept=document.getElementById('nf-dept').value;
-  let photoUrl=null;
+  const editId   = document.getElementById('nf-edit-id')?.value || '';
+  const firstName= (document.getElementById('nf-firstname')?.value||'').trim();
+  const lastName = (document.getElementById('nf-lastname')?.value||'').trim();
+
+  if(!firstName){ showToast('กรุณากรอกชื่อ'); switchEmpTab('basic'); return; }
+  if(!document.getElementById('nf-start')?.value){ showToast('กรุณากรอกวันเริ่มงาน'); switchEmpTab('work'); return; }
+
+  const fullName = (firstName+' '+lastName).trim();
+
+  // อัปโหลดรูป
+  let photoUrl = editId ? (emps.find(e=>e.id===editId)?.photo_url||null) : null;
   if(newEmpPhoto){
-    const blob=await(await fetch(newEmpPhoto)).blob();const fname=`emp_${Date.now()}.jpg`;
-    const{data:up}=await db.storage.from('employee-photos').upload(fname,blob,{contentType:'image/jpeg',upsert:true});
-    if(up){const{data:u}=db.storage.from('employee-photos').getPublicUrl(fname);photoUrl=u.publicUrl;}
+    try{
+      const blob = await(await fetch(newEmpPhoto)).blob();
+      const fname = 'emp_'+Date.now()+'.jpg';
+      const{data:up} = await db.storage.from('employee-photos').upload(fname,blob,{contentType:'image/jpeg',upsert:true});
+      if(up){ const{data:u}=db.storage.from('employee-photos').getPublicUrl(fname); photoUrl=u.publicUrl; }
+    }catch(e){}
   }
-  const{error}=await db.from('employees').insert({name,position:document.getElementById('nf-pos').value,department:dept,date_of_birth:document.getElementById('nf-dob').value||null,start_date:document.getElementById('nf-start').value||null,salary:parseFloat(document.getElementById('nf-salary').value)||0,email:document.getElementById('nf-email').value,photo_url:photoUrl,role:'employee'});
-  if(error){showToast('เกิดข้อผิดพลาด: '+error.message);return;}
-  closeSh('add-emp');newEmpPhoto=null;showToast('เพิ่ม '+name+' สำเร็จ');
-  ['nf-name','nf-pos','nf-salary','nf-email'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+
+  // สถานะ
+  const status = document.getElementById('nf-status')?.value || 'active';
+  const isActive = ['active','probation'].includes(status);
+
+  const g = id => document.getElementById(id)?.value || null;
+
+  const payload = {
+    name:           fullName,
+    first_name:     firstName,
+    last_name:      lastName,
+    title:          g('nf-title'),
+    first_name_en:  g('nf-firstname-en'),
+    last_name_en:   g('nf-lastname-en'),
+    nickname:       g('nf-nickname'),
+    date_of_birth:  g('nf-dob'),
+    national_id:    g('nf-national-id'),
+    gender:         g('nf-gender'),
+    employee_code:  g('nf-code'),
+    position:       g('nf-pos'),
+    department:     g('nf-dept'),
+    start_date:     g('nf-start'),
+    probation_end:  g('nf-probation'),
+    salary_type:    g('nf-salary-type') || 'monthly',
+    salary:         parseFloat(g('nf-salary')||'0') || 0,
+    role:           g('nf-role') || 'employee',
+    bank_name:      g('nf-bank-name'),
+    bank_account:   g('nf-bank-account'),
+    bank_branch:    g('nf-bank-branch'),
+    bank_type:      g('nf-bank-type') || 'savings',
+    sso_eligible:   g('nf-sso') !== 'false',
+    phone:          g('nf-phone'),
+    email:          g('nf-email'),
+    line_id:        g('nf-line'),
+    address:        g('nf-address'),
+    emergency_name: g('nf-emer-name'),
+    emergency_phone:g('nf-emer-phone'),
+    end_date:       isActive ? null : (g('nf-end-date')||null),
+    is_active:      isActive,
+    photo_url:      photoUrl,
+  };
+
+  let error;
+  if(editId){
+    // แก้ไข
+    ({error} = await db.from('employees').update(payload).eq('id', editId));
+    // เปลี่ยน password ถ้ากรอก
+    const newPass = g('nf-password');
+    if(!error && newPass && newPass.length >= 6){
+      await db.rpc('change_password_by_hr',{p_employee_id:editId, p_new_password:newPass}).catch(()=>{});
+    }
+    // อัปเดต username
+    const newUser = (g('nf-username')||'').toLowerCase().trim();
+    if(!error && newUser){
+      await db.from('employees').update({username:newUser}).eq('id',editId).catch(()=>{});
+    }
+    if(!error){ showToast('แก้ไข '+fullName+' สำเร็จ ✅'); }
+  } else {
+    // เพิ่มใหม่
+    const{data:newEmp, error:e2} = await db.from('employees').insert(payload).select().single();
+    error = e2;
+    if(!error && newEmp){
+      const uname = (g('nf-username')||'').toLowerCase().trim();
+      const upass = g('nf-password') || '';
+      if(uname) await db.from('employees').update({username:uname}).eq('id',newEmp.id);
+      if(upass && upass.length >= 6){
+        await db.rpc('change_password_by_hr',{p_employee_id:newEmp.id, p_new_password:upass}).catch(()=>{});
+      }
+    }
+    if(!error){ showToast('เพิ่มพนักงาน '+fullName+' สำเร็จ ✅'); }
+  }
+
+  if(error){ showToast('เกิดข้อผิดพลาด: '+(error.message||'ไม่ทราบสาเหตุ')); return; }
+  closeSh('add-emp'); newEmpPhoto = null;
   await loadEmps();
+  if(document.getElementById('dp-orgchart')?.classList.contains('show')) renderOrgChart();
 }
 
 // ============================================================
