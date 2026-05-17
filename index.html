@@ -451,7 +451,7 @@ input[type=file]{display:none}
     </div>
   </div>
 
-  <div class="login-version">Flow HR v3.33 · © 2026 Flow Engineering and Service Co.,Ltd.</div>
+  <div class="login-version">Flow HR v3.34 · © 2026 Flow Engineering and Service Co.,Ltd.</div>
 </div>
 
 <!-- ============ DESKTOP ============ -->
@@ -3227,101 +3227,75 @@ function renderOrgChart(){
     ? emps.filter(e => e.department === orgFilter || ['owner','hr_manager'].includes(e.role))
     : emps;
 
-  // จัดกลุ่มตาม role
-  const owners     = data.filter(e=>e.role==='owner');
-  const hrMgrs     = data.filter(e=>e.role==='hr_manager');
-  const deptHeads  = data.filter(e=>e.role==='dept_head');
-  const accountants= data.filter(e=>e.role==='accountant');
-  const employees  = data.filter(e=>e.role==='employee');
+  // ===== Org Chart Structure =====
+  // Level 1: Owner (MD)
+  // Level 2: dept_head + hr_manager (หัวหน้า)
+  // Level 3: employee + accountant (พนักงานทุกคนรวมบัญชี)
 
-  // สร้าง HTML แบบ hierarchy
-  let html = `<div style="display:flex;flex-direction:column;align-items:center;gap:0;min-width:max-content;padding-bottom:20px">`;
+  const owners      = data.filter(e=>e.role==='owner');
+  const level2List  = data.filter(e=>['hr_manager','dept_head'].includes(e.role));
+  // accountant อยู่ระดับเดียวกับพนักงาน
+  const employees   = data.filter(e=>['employee','accountant'].includes(e.role));
+
+  level2List.sort((a,b)=>(a.position_order||9)-(b.position_order||9));
+
+  let html = `<div style="display:flex;flex-direction:column;align-items:center;min-width:max-content;padding-bottom:24px">`;
 
   // ===== Level 1: Owner =====
   if(owners.length){
-    html += `<div style="display:flex;gap:24px;justify-content:center;margin-bottom:0">`;
-    owners.forEach(e=>{ html+=`<div class="org-node-wrap">${orgCardHTML(e)}</div>`; });
+    html += `<div style="display:flex;gap:24px;justify-content:center">`;
+    owners.forEach(e=>{ html+=`<div class="org-node-wrap" style="display:flex;flex-direction:column;align-items:center">${orgCardHTML(e)}</div>`; });
     html += `</div>`;
-
-    // เส้นแนวตั้ง
-    if(hrMgrs.length||deptHeads.length||accountants.length||employees.length){
-      html += `<div style="width:1.5px;height:24px;background:#CFD8DC"></div>`;
+    if(level2List.length || employees.length){
+      html += `<div style="width:1.5px;height:28px;background:#CFD8DC"></div>`;
     }
   }
 
-  // ===== Level 2: HR Manager + Accountant (อยู่ใต้ owner) =====
-  const level2 = [...hrMgrs, ...accountants];
-  if(level2.length){
-    // เส้นแนวนอน
-    if(level2.length > 1){
-      html += `<div style="position:relative;display:flex;justify-content:center;width:100%;height:0">
-        <div style="position:absolute;top:0;width:${Math.min(level2.length*204,600)}px;height:1.5px;background:#CFD8DC"></div>
-      </div>`;
+  // ===== Level 2: dept_head + accountant (ระดับเดียวกัน ใต้ MD) =====
+  if(level2List.length){
+    // เส้นแนวนอนเชื่อม
+    if(level2List.length > 1){
+      const w = Math.min(level2List.length * 210, 700);
+      html += `<div style="position:relative;height:1px;width:${w}px;background:#CFD8DC;margin:0 auto"></div>`;
     }
-    html += `<div style="display:flex;gap:24px;justify-content:center;margin-bottom:0;position:relative">`;
-    level2.forEach(e=>{
-      html += `<div class="org-node-wrap">
-        <div style="width:1.5px;height:24px;background:#CFD8DC;margin:0 auto"></div>
+    html += `<div style="display:flex;gap:28px;justify-content:center;align-items:flex-start">`;
+    level2List.forEach(e=>{
+      html += `<div style="display:flex;flex-direction:column;align-items:center">
+        <div style="width:1.5px;height:24px;background:#CFD8DC"></div>
         ${orgCardHTML(e)}
       </div>`;
     });
     html += `</div>`;
-
-    if(deptHeads.length || employees.length){
-      html += `<div style="width:1.5px;height:24px;background:#CFD8DC"></div>`;
-    }
-  }
-
-  // ===== Level 3: Dept Heads =====
-  if(deptHeads.length){
-    if(deptHeads.length > 1){
-      html += `<div style="position:relative;display:flex;justify-content:center;width:100%;height:0">
-        <div style="position:absolute;top:0;width:${Math.min(deptHeads.length*204,600)}px;height:1.5px;background:#CFD8DC"></div>
-      </div>`;
-    }
-    html += `<div style="display:flex;gap:24px;justify-content:center;margin-bottom:0">`;
-    deptHeads.forEach(e=>{
-      html += `<div class="org-node-wrap">
-        <div style="width:1.5px;height:24px;background:#CFD8DC;margin:0 auto"></div>
-        ${orgCardHTML(e)}
-      </div>`;
-    });
-    html += `</div>`;
-
     if(employees.length){
-      html += `<div style="width:1.5px;height:24px;background:#CFD8DC"></div>`;
+      html += `<div style="width:1.5px;height:28px;background:#CFD8DC"></div>`;
     }
   }
 
-  // ===== Level 4: Employees (จัดกลุ่มตาม dept) =====
+  // ===== Level 3: Employees จัดกลุ่มตามแผนก =====
   if(employees.length){
-    // กลุ่มตามแผนก
     const byDept = {};
     employees.forEach(e=>{
       const d = e.department||'อื่นๆ';
       if(!byDept[d]) byDept[d]=[];
       byDept[d].push(e);
     });
-
     const depts = Object.keys(byDept);
+
     if(depts.length > 1){
-      html += `<div style="position:relative;display:flex;justify-content:center;width:100%;height:0">
-        <div style="position:absolute;top:0;width:${Math.min(depts.length*224,700)}px;height:1.5px;background:#CFD8DC"></div>
-      </div>`;
+      const w = Math.min(depts.length * 220, 800);
+      html += `<div style="height:1px;width:${w}px;background:#CFD8DC;margin:0 auto"></div>`;
     }
 
     html += `<div style="display:flex;gap:32px;justify-content:center;align-items:flex-start;flex-wrap:wrap">`;
     depts.forEach(dept=>{
       const members = byDept[dept];
-      html += `<div style="display:flex;flex-direction:column;align-items:center;gap:0">`;
-      // หัว dept group
-      html += `<div style="width:1.5px;height:24px;background:#CFD8DC;margin:0 auto"></div>`;
-      html += `<div style="background:#F5F7FA;border-radius:8px;padding:4px 12px;font-size:10px;font-weight:700;color:#546E7A;margin-bottom:8px;border:1px solid #E0E0E0">${dept}</div>`;
-      // members
-      html += `<div style="display:flex;gap:12px;flex-wrap:wrap;justify-content:center">`;
+      html += `<div style="display:flex;flex-direction:column;align-items:center">
+        <div style="width:1.5px;height:24px;background:#CFD8DC"></div>
+        <div style="background:#F1F5F9;border-radius:8px;padding:3px 12px;font-size:10px;font-weight:700;color:#374151;margin-bottom:10px;border:1px solid #D1D5DB">${dept}</div>
+        <div style="display:flex;gap:12px;flex-wrap:wrap;justify-content:center">`;
       members.forEach(e=>{
-        html += `<div class="org-node-wrap">
-          <div style="width:1.5px;height:16px;background:#CFD8DC;margin:0 auto"></div>
+        html += `<div style="display:flex;flex-direction:column;align-items:center">
+          <div style="width:1.5px;height:16px;background:#CFD8DC"></div>
           ${orgCardHTML(e)}
         </div>`;
       });
