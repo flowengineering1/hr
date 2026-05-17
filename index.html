@@ -1399,31 +1399,22 @@ async function loadLeaves(){
   const role = currentUser?.role;
   const uid  = currentUser?.id;
 
-  console.log('[loadLeaves] role:', role, 'uid:', uid);
-  console.log('[loadLeaves] can leave_view_all:', can('leave_view_all'));
 
   if(can('leave_view_all')){
     // owner, hr_manager, accountant — เห็นทุกคน
-    console.log('[loadLeaves] query: all');
-  } else if(can('leave_view_dept') && isDeptHead()){
+    } else if(can('leave_view_dept') && isDeptHead()){
     // dept_head
-    console.log('[loadLeaves] query: dept');
-  } else {
+    } else {
     // employee — เห็นแค่ของตัวเอง
-    console.log('[loadLeaves] query: employee_id =', uid);
-    query = query.eq('employee_id', uid);
+      query = query.eq('employee_id', uid);
   }
 
-  const{data, error} = await query;
-  console.log('[loadLeaves] result:', data?.length, 'rows, error:', error?.message);
-  if(data) data.forEach(l => console.log('  leave:', l.id, l.status, l.employee_id));
 
   let filtered = data||[];
   if(isDeptHead() && !can('leave_view_all')){
     filtered = filtered.filter(l=> l.employees?.department === myDept() || l.employee_id === uid);
   }
   leaves=filtered;
-  console.log('[loadLeaves] filtered:', filtered.length);
   renderLeaveAll();
 }
 
@@ -2202,14 +2193,10 @@ async function deleteOff(id, name){
     msg: `ต้องการลบสาขา <b>${name}</b> ใช่ไหม?<br><span style="font-size:12px;color:#9CA3AF">พนักงานที่ผูกกับสาขานี้จะไม่สามารถเช็คอินได้</span>`,
     okText: 'ลบสาขา', okColor: '#B91C1C',
     onOk: async () => {
-      console.log('[deleteOff] deleting id:', id, 'name:', name);
       const{error, data} = await db.from('offices').delete().eq('id', id).select();
-      console.log('[deleteOff] result:', data, 'error:', error);
       if(error){
-        console.log('[deleteOff] delete failed, trying is_active=false');
-        const{error:e2,data:d2} = await db.from('offices').update({is_active:false}).eq('id',id).select();
-        console.log('[deleteOff] update result:', d2, 'error:', e2);
-        if(e2){ showToast('เกิดข้อผิดพลาด: '+(error.message||e2.message)); return; }
+          const{error:e2,data:d2} = await db.from('offices').update({is_active:false}).eq('id',id).select();
+          if(e2){ showToast('เกิดข้อผิดพลาด: '+(error.message||e2.message)); return; }
       }
       showToast('ลบสาขา '+name+' แล้ว ✅');
       offices = offices.filter(o=>o.id !== id);
@@ -2468,13 +2455,11 @@ async function deleteHoliday(id, name){
 let _confirmCallback = null;
 
 function showConfirm({ icon, iconBg, iconColor, title, msg, okText, okColor, onOk }){
-  console.log('[showConfirm] called, title:', title, 'onOk:', typeof onOk);
   const iconEl   = document.getElementById('confirm-icon');
   const titleEl  = document.getElementById('confirm-title');
   const msgEl    = document.getElementById('confirm-msg');
   const okBtn    = document.getElementById('confirm-ok-btn');
   const dialog   = document.getElementById('confirm-dialog');
-  console.log('[showConfirm] elements:', {iconEl:!!iconEl, titleEl:!!titleEl, okBtn:!!okBtn, dialog:!!dialog});
 
   if(iconEl){
     iconEl.textContent = icon||'❓';
@@ -2499,12 +2484,10 @@ function showConfirm({ icon, iconBg, iconColor, title, msg, okText, okColor, onO
     dialog.style.alignItems = 'center';
     dialog.style.justifyContent = 'center';
     dialog.style.padding = '24px';
-    console.log('[showConfirm] dialog display after:', dialog.style.display, 'classList:', dialog.className);
   }
 }
 
 function closeConfirm(){
-  console.log('[closeConfirm] called');
   const dialog = document.getElementById('confirm-dialog');
   if(dialog){
     dialog.classList.remove('show');
@@ -2514,14 +2497,11 @@ function closeConfirm(){
 }
 
 async function runConfirm(){
-  console.log('[runConfirm] called, callback:', typeof _confirmCallback);
   const cb = _confirmCallback;  // save ก่อน close
   closeConfirm();               // close จะ set _confirmCallback = null
   if(cb){
-    console.log('[runConfirm] executing callback');
     await cb();
   }
-  console.log('[runConfirm] done');
 }
 
 // คลิก background ปิด
