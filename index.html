@@ -451,7 +451,7 @@ input[type=file]{display:none}
     </div>
   </div>
 
-  <div class="login-version">Flow HR v3.68 · © 2026 Flow Engineering and Service Co.,Ltd.</div>
+  <div class="login-version">Flow HR v3.70 · © 2026 Flow Engineering and Service Co.,Ltd.</div>
 </div>
 
 <!-- ============ DESKTOP ============ -->
@@ -1612,8 +1612,12 @@ function lvRowHTML(l,showApprove=false){
   const canApprove = showApprove && can('leave_approve') &&
     (isHR() || (isDeptHead() && e.department === myDept()));
 
-  // ยกเลิก — เฉพาะเจ้าของใบลา และยังเป็น pending อยู่
-  const canCancel = l.status==='pending' && l.employee_id === uid;
+  // ยกเลิก:
+  // - pending → เจ้าของยกเลิกเองได้
+  // - approved → เฉพาะ owner/hr_manager เท่านั้น
+  const isOwnerOrHR = ['owner','hr_manager'].includes(currentUser?.role);
+  const canCancel = (l.status==='pending' && l.employee_id === uid) ||
+                    (l.status==='approved' && isOwnerOrHR);
 
   const bg=DEPT_BG[e.department]||'#E3F2FD',col=DEPT_COL[e.department]||'#1565C0';
   const avEl=e.photo_url
@@ -1659,10 +1663,11 @@ function lvRowHTML(l,showApprove=false){
 }
 
 async function cancelLeave(id, typeLabel){
+  const isApproved = leaves.find(x=>x.id===id)?.status === 'approved';
   showConfirm({
     icon: '↩️', iconBg: '#FEF3C7', iconColor: '#92400E',
     title: 'ยกเลิกใบลา',
-    msg: `ต้องการยกเลิก<b>${typeLabel||'ใบลา'}</b>นี้ใช่ไหม?<br><span style="font-size:12px;color:#9CA3AF">ใบลาจะถูกยกเลิกทันที</span>`,
+    msg: `ต้องการยกเลิก<b>${typeLabel||'ใบลา'}</b>นี้ใช่ไหม?<br><span style="font-size:12px;color:#9CA3AF">${isApproved?'⚠️ ใบลานี้อนุมัติแล้ว — ยืนยันจะยกเลิกการอนุมัติ':'ใบลาจะถูกยกเลิกทันที'}</span>`,
     okText: 'ยืนยันยกเลิก', okColor: '#B45309',
     onOk: async () => {
       const{error} = await db.from('leaves').update({status:'cancelled'}).eq('id',id);
@@ -3882,7 +3887,10 @@ function otRowHTML(o, showApprove=false){
     rejected: '<span class="badge b-red">ปฏิเสธ</span>',
   }[o.status] || '';
 
-  const canApproveThis = showApprove && o.status==='pending' && can('approve_leave');
+  // อนุมัติ OT ได้เฉพาะ owner/hr_manager/dept_head และต้องไม่ใช่ OT ของตัวเอง
+  const isApprover = ['owner','hr_manager','dept_head'].includes(currentUser?.role);
+  const isOwnOT    = o.employee_id === currentUser?.id;
+  const canApproveThis = showApprove && o.status==='pending' && isApprover && !isOwnOT;
 
   return `<div style="display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:.5px solid #F0F0F0">
     <div class="av" style="width:36px;height:36px;background:${avBg};flex-shrink:0">${avEl}</div>
