@@ -451,7 +451,7 @@ input[type=file]{display:none}
     </div>
   </div>
 
-  <div class="login-version">Flow HR v3.34 · © 2026 Flow Engineering and Service Co.,Ltd.</div>
+  <div class="login-version">Flow HR v3.35 · © 2026 Flow Engineering and Service Co.,Ltd.</div>
 </div>
 
 <!-- ============ DESKTOP ============ -->
@@ -2144,7 +2144,45 @@ function renderPS(pfx,aId){
 // ============================================================
 function renderOfficesList(){
   const el=document.getElementById('d-offices-list');if(!el)return;
-  el.innerHTML=offices.length?offices.map(o=>`<div class="card" style="display:flex;align-items:center;gap:14px"><div style="width:44px;height:44px;border-radius:12px;background:var(--green-l);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0"><i class="ti ti-map-pin" style="color:var(--green)" aria-hidden="true"></i></div><div style="flex:1"><div style="font-size:15px;font-weight:600">${o.name}</div><div style="font-size:12px;color:#78909C;margin-top:2px">${o.address||'—'} · Lat ${(o.lat||0).toFixed(4)} · Lng ${(o.lng||0).toFixed(4)} · รัศมี ${o.radius_m}ม.</div></div><button class="btn-o" onclick="editOff('${o.id}')"><i class="ti ti-edit" aria-hidden="true"></i>แก้ไข</button></div>`).join(''):'<div style="text-align:center;color:#B0BEC5;padding:40px;font-size:13px">ยังไม่มีสาขา</div>';
+  el.innerHTML=offices.length?offices.map(o=>`
+    <div class="card" style="display:flex;align-items:center;gap:14px;margin-bottom:10px">
+      <div style="width:44px;height:44px;border-radius:12px;background:var(--green-l);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0">
+        <i class="ti ti-map-pin" style="color:var(--green)" aria-hidden="true"></i>
+      </div>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:15px;font-weight:600">${o.name}</div>
+        <div style="font-size:12px;color:#78909C;margin-top:2px">
+          ${o.address||'—'}<br>
+          Lat ${(o.lat||0).toFixed(5)} · Lng ${(o.lng||0).toFixed(5)} · รัศมี ${o.radius_m||200}ม.
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;flex-shrink:0">
+        <button class="btn-icon btn-edit" data-id="${o.id}" onclick="editOff(this.dataset.id)" title="แก้ไข">
+          <i class="ti ti-edit" aria-hidden="true"></i>
+        </button>
+        <button class="btn-icon btn-del" data-id="${o.id}" data-name="${o.name}" onclick="deleteOff(this.dataset.id,this.dataset.name)" title="ลบสาขา">
+          <i class="ti ti-trash" aria-hidden="true"></i>
+        </button>
+      </div>
+    </div>`).join(''):'<div style="text-align:center;color:#B0BEC5;padding:40px;font-size:13px">ยังไม่มีสาขา</div>';
+}
+
+async function deleteOff(id, name){
+  showConfirm({
+    icon: '🗑️', iconBg: '#FEE2E2', iconColor: '#991B1B',
+    title: 'ลบสาขา',
+    msg: `ต้องการลบสาขา <b>${name}</b> ใช่ไหม?<br><span style="font-size:12px;color:#9CA3AF">พนักงานที่ผูกกับสาขานี้จะไม่สามารถเช็คอินได้</span>`,
+    okText: 'ลบสาขา', okColor: '#B91C1C',
+    onOk: async () => {
+      const{error} = await db.from('offices').delete().eq('id', id);
+      if(error){ showToast('เกิดข้อผิดพลาด: '+error.message); return; }
+      showToast('ลบสาขา '+name+' แล้ว ✅');
+      // โหลดใหม่
+      const{data} = await db.from('offices').select('*');
+      offices = data||[];
+      renderOfficesList();
+    }
+  });
 }
 function openOffice(){document.getElementById('of-id').value='';['of-name','of-addr','of-lat','of-lng'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});document.getElementById('of-radius').value='20';showSh('office');}
 function editOff(id){const o=offices.find(x=>x.id===id);if(!o)return;document.getElementById('of-id').value=o.id;document.getElementById('of-name').value=o.name;document.getElementById('of-addr').value=o.address||'';document.getElementById('of-lat').value=o.lat;document.getElementById('of-lng').value=o.lng;document.getElementById('of-radius').value=o.radius_m;showSh('office');}
