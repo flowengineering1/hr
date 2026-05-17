@@ -451,7 +451,7 @@ input[type=file]{display:none}
     </div>
   </div>
 
-  <div class="login-version">Flow HR v3.64 · © 2026 Flow Engineering and Service Co.,Ltd.</div>
+  <div class="login-version">Flow HR v3.65 · © 2026 Flow Engineering and Service Co.,Ltd.</div>
 </div>
 
 <!-- ============ DESKTOP ============ -->
@@ -2420,7 +2420,10 @@ function renderPS(pfx,aId){
     return;
   }
   const[m,y]=(document.getElementById(`${pre}-ps-month`)?.value||CUR_M+','+CUR_Y).split(',').map(Number);
-  const sal=emp.salary||0,sso=Math.min(sal*0.05,750),tax=Math.max(0,((sal*12-160000)*0.05)/12),net=sal-sso-tax;
+  const sal = emp.salary||0;
+  const sso = calcSSO(sal, emp.sso_eligible!==false);
+  const tax = calcTax(sal);
+  const net = sal - sso - tax;
   area.innerHTML=`<div class="card" style="padding:0;overflow:hidden"><div class="ps-top"><div style="font-size:12px;opacity:.8">เงินสุทธิที่ได้รับ</div><div class="ps-net">฿${Math.round(net).toLocaleString('th-TH')}</div><div style="font-size:11px;opacity:.7;margin-top:4px">${MTH_F[m]} ${y} · ${emp.name} · ${emp.position||'—'}</div></div><div class="ps-body"><div class="ps-sec">รายได้</div><div class="ps-row"><span>เงินเดือนฐาน</span><span>฿${sal.toLocaleString('th-TH')}</span></div><div class="ps-sec">หักออก</div><div class="ps-row"><span>ประกันสังคม (5%)</span><span style="color:var(--red)">-฿${sso.toFixed(2)}</span></div><div class="ps-row"><span>ภาษีหัก ณ ที่จ่าย</span><span style="color:var(--red)">-฿${tax.toFixed(2)}</span></div><div class="ps-row ps-total"><span>เงินสุทธิ</span><span>฿${Math.round(net).toLocaleString('th-TH')}</span></div></div></div><button class="btn-fw" style="margin-top:10px" onclick="showToast('ดาวน์โหลด PDF')"><i class="ti ti-download" aria-hidden="true"></i>ดาวน์โหลด PDF</button>`;
 }
 
