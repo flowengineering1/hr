@@ -451,7 +451,7 @@ input[type=file]{display:none}
     </div>
   </div>
 
-  <div class="login-version">Flow HR v3.40 · © 2026 Flow Engineering and Service Co.,Ltd.</div>
+  <div class="login-version">Flow HR v3.42 · © 2026 Flow Engineering and Service Co.,Ltd.</div>
 </div>
 
 <!-- ============ DESKTOP ============ -->
@@ -2488,18 +2488,33 @@ function showConfirm({ icon, iconBg, iconColor, title, msg, okText, okColor, onO
     okBtn.style.background = okColor||'#1252A3';
   }
   _confirmCallback = onOk;
-  if(dialog) dialog.classList.add('show');
+  if(dialog){
+    dialog.classList.add('show');
+    // force style directly
+    dialog.style.display = 'flex';
+    dialog.style.position = 'fixed';
+    dialog.style.inset = '0';
+    dialog.style.zIndex = '99999';
+    dialog.style.background = 'rgba(0,0,0,.6)';
+    dialog.style.alignItems = 'center';
+    dialog.style.justifyContent = 'center';
+    dialog.style.padding = '24px';
+    console.log('[showConfirm] dialog display after:', dialog.style.display, 'classList:', dialog.className);
+  }
 }
 
 function closeConfirm(){
   const dialog = document.getElementById('confirm-dialog');
-  if(dialog) dialog.classList.remove('show');
+  if(dialog){
+    dialog.classList.remove('show');
+    dialog.style.display = 'none';
+  }
   _confirmCallback = null;
 }
 
-function runConfirm(){
+async function runConfirm(){
   closeConfirm();
-  if(_confirmCallback) _confirmCallback();
+  if(_confirmCallback) await _confirmCallback();
 }
 
 // คลิก background ปิด
