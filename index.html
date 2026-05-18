@@ -484,7 +484,7 @@ input[type=file]{display:none}
     </div>
   </div>
 
-  <div class="login-version">Flow HR v3.82 · © 2026 Flow Engineering and Service Co.,Ltd.</div>
+  <div class="login-version">Flow HR v3.83 · © 2026 Flow Engineering and Service Co.,Ltd.</div>
 </div>
 
 <!-- ============ DESKTOP ============ -->
@@ -1075,12 +1075,27 @@ input[type=file]{display:none}
         </div>
         <div id="m-mood"></div>
       </div>
-      <div style="text-align:center;padding:12px 0">
-        <div class="ring-wrap" onclick="doCheckin('m')">
-          <div class="ra"></div><div class="rb"></div><div class="rp"></div>
-          <button class="ci-btn ci-ready" id="m-ci-btn"><i class="ti ti-map-pin" id="m-ci-ico" aria-hidden="true"></i><div class="ci-lbl" id="m-ci-lbl">เช็คอิน</div></button>
+      <div id="m-ci-status-bar" style="background:#F1F5F9;border-radius:12px;padding:10px 14px;margin-bottom:12px;display:none;align-items:center;gap:10px">
+          <div style="width:10px;height:10px;border-radius:50%;background:#22C55E;flex-shrink:0;box-shadow:0 0 0 3px rgba(34,197,94,.2)"></div>
+          <div style="flex:1;font-size:12px">
+            <span style="font-weight:600;color:#065F46">กำลังทำงาน</span>
+            <span style="color:#6B7280"> · เช็คอินเมื่อ </span>
+            <span id="m-ci-in-time" style="font-weight:600;color:#0F1923">—</span>
+          </div>
+          <div id="m-ci-timer" style="font-size:11px;color:#6B7280;font-family:monospace">00:00</div>
         </div>
-      </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:8px">
+          <button id="m-btn-checkin" onclick="doCheckIn('m')"
+            style="padding:16px;border-radius:14px;border:none;cursor:pointer;font-family:inherit;font-size:14px;font-weight:700;display:flex;flex-direction:column;align-items:center;gap:6px;background:#1252A3;color:#fff;box-shadow:0 4px 12px rgba(18,82,163,.3);width:100%">
+            <i class="ti ti-map-pin" style="font-size:28px" aria-hidden="true"></i>
+            เช็คอิน
+          </button>
+          <button id="m-btn-checkout" onclick="doCheckOut('m')" disabled
+            style="padding:16px;border-radius:14px;border:none;cursor:not-allowed;font-family:inherit;font-size:14px;font-weight:700;display:flex;flex-direction:column;align-items:center;gap:6px;background:#F3F4F6;color:#9CA3AF;width:100%">
+            <i class="ti ti-door-exit" style="font-size:28px" aria-hidden="true"></i>
+            เช็คเอาท์
+          </button>
+        </div>
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin:0 12px 12px">
         <div style="background:#fff;border-radius:10px;padding:10px;text-align:center"><div style="font-size:17px;font-weight:700;color:var(--blue)" id="m-ci-in">--:--</div><div style="font-size:9px;color:#9E9E9E;margin-top:2px">เวลาเข้า</div></div>
         <div style="background:#fff;border-radius:10px;padding:10px;text-align:center"><div style="font-size:17px;font-weight:700;color:var(--red)" id="m-ci-out">--:--</div><div style="font-size:9px;color:#9E9E9E;margin-top:2px">เวลาออก</div></div>
@@ -2397,7 +2412,11 @@ function renderOffTabs(pfx){
   else el.innerHTML=offices.map((o,i)=>`<div style="flex-shrink:0;padding:8px 14px;border-radius:20px;border:1.5px solid ${i===offIdx?'var(--blue)':'#E0E0E0'};background:${i===offIdx?'var(--blue-l)':'#fff'};color:${i===offIdx?'var(--blue)':'#546E7A'};font-size:12px;font-weight:500;cursor:pointer" onclick="selOff(${i})">${o.name}</div>`).join('');
 }
 function selOff(i){offIdx=i;renderOffTabs('d');renderOffTabs('m');checkGPS();}
-function initCI(pfx){renderOffTabs(pfx);checkGPS();}
+function initCI(pfx){
+  renderOffTabs(pfx);
+  checkGPS();
+  loadTodayCheckIn(); // โหลดสถานะวันนี้ทุกครั้งที่เปิดหน้า
+}
 
 function checkGPS(){
   ['d','m'].forEach(p=>{
