@@ -493,7 +493,7 @@ input[type=file]{display:none}
     </div>
   </div>
 
-  <div class="login-version">Flow HR v3.99 · © 2026 Flow Engineering and Service Co.,Ltd.</div>
+  <div class="login-version">Flow HR v4.10 · © 2026 Flow Engineering and Service Co.,Ltd.</div>
 </div>
 
 <!-- ============ DESKTOP ============ -->
@@ -562,6 +562,7 @@ input[type=file]{display:none}
       <!-- DASHBOARD -->
       <div id="dp-dashboard" class="page show">
         <div id="d-hbd-banner"></div>
+        <div id="d-leave-quota" style="margin-bottom:12px"></div>
         <div class="kpi-grid kpi-d" id="d-kpi"></div>
         <div class="g2">
           <div>
@@ -1675,6 +1676,157 @@ function renderAgeBars(){
   el.innerHTML=h;
 }
 
+
+// ============================================================
+// LEAVE QUOTA — วันหยุดคงเหลือ
+// ============================================================
+async function renderLeaveQuota(){
+  const el = document.getElementById('d-leave-quota');
+  if(!el || !currentUser) return;
+
+  const today  = new Date();
+  const year   = today.getFullYear();
+  const month  = today.getMonth();
+  const startY = `${year}-01-01`;
+  const endY   = `${year}-12-31`;
+
+  // ดึง settings สิทธิ์ลา
+  const{data:ws} = await db.from('work_settings')
+    .select('annual_leave_days,annual_leave_after_months').limit(1);
+  const annualDays   = ws?.[0]?.annual_leave_days || 6;
+  const annualAfterM = ws?.[0]?.annual_leave_after_months || 12;
+
+  // ดึง leaves ที่ approved ปีนี้ของตัวเอง
+  const{data:lvs} = await db.from('leaves')
+    .select('type,days,status')
+    .eq('employee_id', currentUser.id)
+    .in('status', ['approved','pending'])
+    .gte('start_date', startY)
+    .lte('end_date', endY);
+
+  // นับวันลาแต่ละประเภท
+  const used = {annual:0, sick:0, personal:0};
+  const pend = {annual:0, sick:0, personal:0};
+  (lvs||[]).forEach(l => {
+    const d = l.days || 1;
+    if(l.status === 'approved') used[l.type] = (used[l.type]||0) + d;
+    if(l.status === 'pending')  pend[l.type] = (pend[l.type]||0) + d;
+  });
+
+  // คำนวณสิทธิ์ลาพักร้อน
+  const emp = emps.find(e=>e.id===currentUser.id);
+  const startDate = emp?.start_date ? new Date(emp.start_date) : null;
+  let annualEligible = false;
+  let daysToAnnual   = 0;
+  let annualEligibleDate = null;
+
+  if(startDate){
+    // คำนวณเดือนที่ทำงานแล้ว
+    const monthsWorked = (today.getFullYear()-startDate.getFullYear())*12
+                       + (today.getMonth()-startDate.getMonth());
+    annualEligible = monthsWorked >= annualAfterM;
+
+    if(!annualEligible){
+      // เหลืออีกกี่วัน
+      annualEligibleDate = new Date(startDate);
+      annualEligibleDate.setMonth(annualEligibleDate.getMonth() + annualAfterM);
+      daysToAnnual = Math.ceil((annualEligibleDate - today) / 86400000);
+    }
+  }
+
+  // สิทธิ์ลาแต่ละประเภทต่อปี (ตามกฎหมายแรงงาน)
+  const quota = {
+    sick:     30,  // ลาป่วยได้ 30 วัน/ปี
+    personal: 3,   // ลากิจ 3 วัน/ปี (กำหนดเอง)
+    annual:   annualEligible ? annualDays : 0,
+  };
+
+  const remaining = {
+    sick:     Math.max(0, quota.sick     - used.sick),
+    personal: Math.max(0, quota.personal - used.personal),
+    annual:   Math.max(0, quota.annual   - used.annual),
+  };
+
+  const cards = [
+    {
+      type: 'sick',
+      label: 'ลาป่วย',
+      icon: 'ti-stethoscope',
+      color: '#EF4444',
+      bg: '#FEE2E2',
+      quota: quota.sick,
+      used: used.sick,
+      pend: pend.sick,
+      rem: remaining.sick,
+    },
+    {
+      type: 'personal',
+      label: 'ลากิจ',
+      icon: 'ti-briefcase',
+      color: '#F59E0B',
+      bg: '#FEF3C7',
+      quota: quota.personal,
+      used: used.personal,
+      pend: pend.personal,
+      rem: remaining.personal,
+    },
+    {
+      type: 'annual',
+      label: 'ลาพักร้อน',
+      icon: 'ti-beach',
+      color: '#10B981',
+      bg: '#D1FAE5',
+      quota: quota.annual,
+      used: used.annual,
+      pend: pend.annual,
+      rem: remaining.annual,
+      notEligible: !annualEligible,
+      daysToAnnual,
+      eligibleDate: annualEligibleDate,
+    },
+  ];
+
+  el.innerHTML = `
+  <div class="card" style="padding:14px">
+    <div class="card-hdr" style="margin-bottom:12px">
+      <div class="card-hdr-l"><i class="ti ti-calendar-check" aria-hidden="true"></i>วันหยุดคงเหลือ ${year}</div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px">
+      ${cards.map(c => {
+        if(c.notEligible){
+          // ยังไม่มีสิทธิ์ลาพักร้อน
+          const dateStr = c.eligibleDate
+            ? c.eligibleDate.toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'2-digit'})
+            : '—';
+          return `<div style="background:${c.bg};border-radius:12px;padding:12px;text-align:center">
+            <div style="width:36px;height:36px;background:rgba(255,255,255,.7);border-radius:10px;display:flex;align-items:center;justify-content:center;margin:0 auto 8px">
+              <i class="ti ${c.icon}" style="color:${c.color};font-size:18px" aria-hidden="true"></i>
+            </div>
+            <div style="font-size:12px;font-weight:700;color:#374151;margin-bottom:4px">${c.label}</div>
+            <div style="font-size:10px;color:#6B7280;line-height:1.5">
+              ได้สิทธิ์<br>${dateStr}<br>
+              <span style="color:${c.color};font-weight:600">อีก ${c.daysToAnnual} วัน</span>
+            </div>
+          </div>`;
+        }
+        const pct = c.quota > 0 ? Math.round((c.rem/c.quota)*100) : 0;
+        return `<div style="background:${c.bg};border-radius:12px;padding:12px;text-align:center">
+          <div style="width:36px;height:36px;background:rgba(255,255,255,.7);border-radius:10px;display:flex;align-items:center;justify-content:center;margin:0 auto 6px">
+            <i class="ti ${c.icon}" style="color:${c.color};font-size:18px" aria-hidden="true"></i>
+          </div>
+          <div style="font-size:12px;font-weight:700;color:#374151;margin-bottom:2px">${c.label}</div>
+          <div style="font-size:24px;font-weight:900;color:${c.color};line-height:1">${c.rem}</div>
+          <div style="font-size:10px;color:#6B7280;margin-top:2px">เหลือ / ${c.quota} วัน</div>
+          ${c.pend>0?`<div style="font-size:9px;color:#F59E0B;margin-top:3px">รออนุมัติ ${c.pend} วัน</div>`:''}
+          <div style="background:rgba(255,255,255,.5);border-radius:4px;height:4px;margin-top:6px;overflow:hidden">
+            <div style="width:${pct}%;height:100%;background:${c.color};border-radius:4px;transition:width .5s"></div>
+          </div>
+        </div>`;
+      }).join('')}
+    </div>
+  </div>`;
+}
+
 // ============================================================
 // HBD BANNER
 // ============================================================
@@ -1719,6 +1871,7 @@ function renderHBDBanner(){
 function renderAll(){
   renderKPI();
   renderHBDBanner();
+  renderLeaveQuota();
   renderBdayTabs();renderBdayList(bdayM,'d');renderBdayList(CUR_M,'m');
   renderBars('d-dept-bars',cntBy('department'));renderBars('d-tenure-bars',cntTenure());
   renderBars('m-dept-bars',cntBy('department'));
@@ -2776,7 +2929,7 @@ async function loadTeamAttend(){
   const td = todayS();
   // join employees เพื่อดึงชื่อและรูป
   const{data} = await db.from('attendances')
-    .select('*, employees!attendances_employee_id_fkey(id,name,first_name,last_name,nickname,department,photo_url)')
+    .select('*, employees!attendances_employee_id_fkey(id,name,first_name,last_name,nickname,department,photo_url), offices(id,name)')
     .gte('check_in', td+'T00:00:00')
     .order('check_in', {ascending:false})
     .limit(30);
@@ -3502,7 +3655,7 @@ async function loadAttendDashboard(){
 
   // ดึง attendance วันนี้ + join employees
   const{data: attData} = await db.from('attendances')
-    .select('*, employees(id,name,first_name,last_name,nickname,department,photo_url,salary_type)')
+    .select('*, employees(id,name,first_name,last_name,nickname,department,photo_url,salary_type), offices(id,name)')
     .gte('check_in', attendDate+'T00:00:00')
     .lte('check_in', attendDate+'T23:59:59')
     .order('check_in');
