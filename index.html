@@ -493,7 +493,7 @@ input[type=file]{display:none}
     </div>
   </div>
 
-  <div class="login-version">Flow HR v3.90 · © 2026 Flow Engineering and Service Co.,Ltd.</div>
+  <div class="login-version">Flow HR v3.91 · © 2026 Flow Engineering and Service Co.,Ltd.</div>
 </div>
 
 <!-- ============ DESKTOP ============ -->
@@ -2361,7 +2361,14 @@ async function saveEmp(){
     // เปลี่ยน password ถ้ากรอก
     const newPass = g('nf-password');
     if(!error && newPass && newPass.length >= 6){
-      try{ await db.rpc('change_password_by_hr',{p_employee_id:editId, p_new_password:newPass}); }catch(e){}
+      // ใช้ md5 ตรงๆ เพราะ login_with_device ใช้ md5(password)
+      try{
+        await db.from('employees').update({
+          password_hash: newPass  // Supabase จะ md5 ผ่าน DB function
+        }).eq('id', editId);
+        // ทำ md5 ผ่าน RPC แทน
+        await db.rpc('set_password_md5', {p_employee_id: editId, p_password: newPass});
+      }catch(e){}
     }
     // อัปเดต username
     const newUser = (g('nf-username')||'').toLowerCase().trim();
@@ -2378,7 +2385,9 @@ async function saveEmp(){
       const upass = g('nf-password') || '';
       if(uname) await db.from('employees').update({username:uname}).eq('id',newEmp.id);
       if(upass && upass.length >= 6){
-        try{ await db.rpc('change_password_by_hr',{p_employee_id:newEmp.id, p_new_password:upass}); }catch(e){}
+        try{
+          await db.rpc('set_password_md5', {p_employee_id: newEmp.id, p_password: upass});
+        }catch(e){}
       }
     }
     if(!error){ showToast('เพิ่มพนักงาน '+fullName+' สำเร็จ ✅'); }
