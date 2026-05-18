@@ -1,4 +1,4 @@
-const CACHE = 'hr-system-v3.96';
+const CACHE = 'hr-system-v4.11';
 const FILES = [
   '/hr/',
   '/hr/index.html',
