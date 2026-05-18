@@ -484,7 +484,7 @@ input[type=file]{display:none}
     </div>
   </div>
 
-  <div class="login-version">Flow HR v3.81 · © 2026 Flow Engineering and Service Co.,Ltd.</div>
+  <div class="login-version">Flow HR v3.82 · © 2026 Flow Engineering and Service Co.,Ltd.</div>
 </div>
 
 <!-- ============ DESKTOP ============ -->
@@ -2631,7 +2631,7 @@ async function doCheckin(pfx){
     navigator.geolocation.getCurrentPosition(async pos=>{
       const off=offices[offIdx];
       const dist=off?Math.round(hvs(pos.coords.latitude,pos.coords.longitude,off.lat,off.lng)):null;
-      await db.from('attendances').insert({check_in:ciTime[pfx].toISOString(),lat:pos.coords.latitude,lng:pos.coords.longitude,distance_m:dist,gps_accuracy:Math.round(pos.coords.accuracy),office_id:off?.id||null,status:'office',type:'official'});
+      await db.from('attendances').insert({employee_id:currentUser?.id,check_in:ciTime[pfx].toISOString(),lat:pos.coords.latitude,lng:pos.coords.longitude,distance_m:dist,gps_accuracy:Math.round(pos.coords.accuracy),office_id:off?.id||null,status:'office',type:'official'});
       loadTeamAttend();
     },()=>{});
     workTimer=setInterval(()=>{if(!ciTime[pfx])return;const diff=new Date()-ciTime[pfx];const h=Math.floor(diff/3600000),m2=Math.floor((diff%3600000)/60000);['d','m'].forEach(p=>{const el=document.getElementById(`${p}-ci-hrs`);if(el)el.textContent=h+':'+p2(m2);});},30000);
@@ -2646,7 +2646,7 @@ async function doCheckin(pfx){
       document.getElementById(`${p}-ci-out`).textContent=t;document.getElementById(`${p}-ci-hrs`).textContent=h+':'+p2(m2);
       const mw=document.getElementById(`${p}-mood`);if(mw)mw.innerHTML='';
     });
-    await db.from('attendances').update({check_out:out.toISOString()}).eq('type','official').is('check_out',null).order('check_in',{ascending:false}).limit(1);
+    await db.from('attendances').update({check_out:out.toISOString()}).eq('employee_id',currentUser?.id).is('check_out',null).order('check_in',{ascending:false}).limit(1);
     showToast('เช็คเอาท์สำเร็จ '+t);
   }
 }
