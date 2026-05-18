@@ -493,7 +493,7 @@ input[type=file]{display:none}
     </div>
   </div>
 
-  <div class="login-version">Flow HR v3.91 · © 2026 Flow Engineering and Service Co.,Ltd.</div>
+  <div class="login-version">Flow HR v3.93 · © 2026 Flow Engineering and Service Co.,Ltd.</div>
 </div>
 
 <!-- ============ DESKTOP ============ -->
@@ -3617,37 +3617,97 @@ async function editCheckout(attId, currentTime){
 }
 
 // Auto checkout — ใส่เวลาเลิกงานให้คนที่ลืม scan ออก (HR only)
+// แสดง modal เลือกพนักงานที่จะ checkout
 async function autoCheckoutAll(){
+  if(!['owner','hr_manager'].includes(currentUser?.role)){
+    showToast('เฉพาะ Owner และ HR Manager เท่านั้น'); return;
+  }
+
   const dateStr = document.getElementById('att-date-pick')?.value || todayS();
   const ws = await db.from('work_settings').select('work_end').limit(1);
   const workEnd = ws?.data?.[0]?.work_end || '17:30';
-  const checkoutDT = dateStr + 'T' + workEnd + ':00';
 
+  // ดึงพนักงานที่ยังไม่ checkout
   const{data:missing} = await db.from('attendances')
-    .select('id,employees!attendances_employee_id_fkey(name)')
+    .select('id,employee_id,check_in')
     .gte('check_in', dateStr+'T00:00:00')
     .lte('check_in', dateStr+'T23:59:59')
-    .is('check_out', null);
+    .is('check_out', null)
+    .not('employee_id', 'is', null);
 
   if(!missing || !missing.length){
     showToast('ไม่มีพนักงานที่ลืม scan ออก ✅'); return;
   }
 
-  showConfirm({
-    icon: '🕐', iconBg:'#FEF3C7', iconColor:'#92400E',
-    title: 'Auto Checkout',
-    msg: `พนักงาน ${missing.length} คนที่ลืม scan ออก<br>จะใส่เวลาออก <b>${workEnd}</b> ให้อัตโนมัติ`,
-    okText: 'ยืนยัน Auto Checkout', okColor:'#B45309',
-    onOk: async () => {
-      const ids = missing.map(m=>m.id);
-      const{error} = await db.from('attendances')
-        .update({check_out: checkoutDT})
-        .in('id', ids);
-      if(error){ showToast('เกิดข้อผิดพลาด'); return; }
-      showToast(`Auto checkout ${missing.length} คน เวลา ${workEnd} ✅`);
-      loadAttendDashboard();
-    }
+  // จับคู่กับ emps
+  const rows = missing.map(m => {
+    const e = emps.find(x=>x.id===m.employee_id)||{};
+    return {...m, emp: e};
   });
+
+  // สร้าง checklist
+  const listHTML = rows.map(r => {
+    const name = (r.emp.first_name||r.emp.name||'ไม่ทราบชื่อ')+' '+(r.emp.last_name||'');
+    const ciStr = fmtT(r.check_in);
+    return `<label style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid #F1F5F9;cursor:pointer">
+      <input type="checkbox" class="aco-chk" value="${r.id}" checked
+        style="width:18px;height:18px;cursor:pointer;accent-color:#1252A3">
+      <div style="flex:1">
+        <div style="font-size:13px;font-weight:600">${name.trim()}</div>
+        <div style="font-size:11px;color:#9CA3AF">เช็คอินเมื่อ ${ciStr}</div>
+      </div>
+    </label>`;
+  }).join('');
+
+  // แสดง dialog พร้อม checklist
+  const dialogEl = document.getElementById('confirm-dialog');
+  const iconEl   = document.getElementById('confirm-icon');
+  const titleEl  = document.getElementById('confirm-title');
+  const msgEl    = document.getElementById('confirm-msg');
+  const okBtn    = document.getElementById('confirm-ok-btn');
+
+  if(iconEl){ iconEl.textContent='🕐'; iconEl.style.background='#FEF3C7'; iconEl.style.color='#92400E'; }
+  if(titleEl) titleEl.textContent = 'Auto Checkout — เลือกพนักงาน';
+  if(msgEl) msgEl.innerHTML = `
+    <div style="font-size:12px;color:#6B7280;margin-bottom:10px">
+      เวลาออก: <b>${workEnd}</b> · เลือกพนักงานที่ต้องการ checkout
+    </div>
+    <div style="display:flex;gap:8px;margin-bottom:8px">
+      <button onclick="document.querySelectorAll('.aco-chk').forEach(c=>c.checked=true)"
+        style="font-size:11px;padding:4px 10px;border:1px solid #D1D5DB;border-radius:6px;cursor:pointer;background:#fff">เลือกทั้งหมด</button>
+      <button onclick="document.querySelectorAll('.aco-chk').forEach(c=>c.checked=false)"
+        style="font-size:11px;padding:4px 10px;border:1px solid #D1D5DB;border-radius:6px;cursor:pointer;background:#fff">ยกเลิกทั้งหมด</button>
+    </div>
+    <div style="max-height:250px;overflow-y:auto;border:1px solid #E5E7EB;border-radius:10px;padding:0 12px">
+      ${listHTML}
+    </div>`;
+  if(okBtn){ okBtn.textContent='Checkout ที่เลือก'; okBtn.style.background='#B45309'; }
+
+  _confirmCallback = async () => {
+    const selected = [...document.querySelectorAll('.aco-chk:checked')].map(c=>c.value);
+    if(!selected.length){ showToast('ไม่ได้เลือกพนักงาน'); return; }
+
+    const checkoutDT = dateStr + 'T' + workEnd + ':00';
+    const{error} = await db.from('attendances')
+      .update({check_out: checkoutDT})
+      .in('id', selected);
+
+    if(error){ showToast('เกิดข้อผิดพลาด: '+error.message); return; }
+    showToast(`Checkout ${selected.length} คน เวลา ${workEnd} ✅`);
+    loadAttendDashboard();
+  };
+
+  if(dialogEl){
+    dialogEl.classList.add('show');
+    dialogEl.style.display = 'flex';
+    dialogEl.style.position = 'fixed';
+    dialogEl.style.inset = '0';
+    dialogEl.style.zIndex = '99999';
+    dialogEl.style.background = 'rgba(0,0,0,.55)';
+    dialogEl.style.alignItems = 'center';
+    dialogEl.style.justifyContent = 'center';
+    dialogEl.style.padding = '24px';
+  }
 }
 // ============================================================
 // COMPANY HOLIDAYS
@@ -4233,9 +4293,11 @@ async function confirmRemoveDevice(){
 async function afterLogin(){
   document.getElementById('login-screen').style.display = 'none';
   updateUserUI();
-  await loadMyPermissions(); // โหลด custom permissions ก่อน
-  applyRoleUI();             // แล้วค่อย apply UI
+  await loadMyPermissions();
+  applyRoleUI();
   loadAll();
+  // โหลดสถานะ checkin วันนี้ทันที
+  setTimeout(loadTodayCheckIn, 500);
   showToast('ยินดีต้อนรับ ' + (currentUser.nickname || currentUser.name) + ' 👋');
 }
 
@@ -4503,6 +4565,8 @@ function promptReset(code, name){
       updateUserUI();
       await loadMyPermissions();
       applyRoleUI();
+      // โหลดสถานะ checkin วันนี้
+      setTimeout(loadTodayCheckIn, 800);
     } catch(e) {
       sessionStorage.removeItem('flowhr_user');
     }
