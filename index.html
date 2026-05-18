@@ -493,7 +493,7 @@ input[type=file]{display:none}
     </div>
   </div>
 
-  <div class="login-version">Flow HR v3.93 · © 2026 Flow Engineering and Service Co.,Ltd.</div>
+  <div class="login-version">Flow HR v3.96 · © 2026 Flow Engineering and Service Co.,Ltd.</div>
 </div>
 
 <!-- ============ DESKTOP ============ -->
@@ -2491,6 +2491,14 @@ async function doCheckIn(pfx){
   const md   = MOODS[mood];
 
   navigator.geolocation.getCurrentPosition(async pos => {
+    // ตรวจ currentUser ก่อน insert
+    if(!currentUser?.id){
+      showToast('Session หมดอายุ กรุณา Login ใหม่');
+      document.getElementById('login-screen').style.display = 'flex';
+      return;
+    }
+    console.log('[CheckIn] employee_id:', currentUser.id, 'name:', currentUser.name);
+
     const off  = offices[offIdx];
     const dist = off ? Math.round(hvs(pos.coords.latitude,pos.coords.longitude,off.lat,off.lng)) : null;
     const now  = new Date();
@@ -2657,6 +2665,7 @@ async function doCheckin(pfx){
   if(!bar||bar.classList.contains('gps-fail')){showToast('อยู่นอกพื้นที่หรือ GPS ไม่มีสัญญาณ');return;}
   if(bar.classList.contains('gps-wait')){showToast('กำลังตรวจสอบ GPS...');return;}
   if(ciState[pfx]==='ready'){
+    if(!currentUser?.id){ showToast('กรุณา Login ก่อน'); return; }
     ciState[pfx]='checkedin';ciTime[pfx]=new Date();
     const t=fmtT(ciTime[pfx]);
     ['d','m'].forEach(p=>{const el=document.getElementById(`${p}-ci-in`);if(el)el.textContent=t;});
@@ -3422,10 +3431,24 @@ async function loadAttendDashboard(){
     .lte('check_in', attendDate+'T23:59:59')
     .order('check_in');
 
-  // ถ้า employees join ไม่ได้ → ดึงจาก emps array แทน
+  // ถ้า employees join ไม่ได้ → ดึงจาก emps array (รวม inactive)
+  // โหลด inactive employees เพิ่มถ้าจำเป็น
+  const allEmpIds = (attData||[]).map(r=>r.employee_id).filter(Boolean);
+  const missingIds = allEmpIds.filter(id => !emps.find(e=>e.id===id));
+
+  let extraEmps = [];
+  if(missingIds.length){
+    const{data:extraData} = await db.from('employees')
+      .select('id,name,first_name,last_name,nickname,department,photo_url,salary_type')
+      .in('id', missingIds);
+    extraEmps = extraData||[];
+  }
+
+  const allEmps = [...emps, ...extraEmps];
+
   attendRecords = (attData||[]).map(r => {
     if(!r.employees && r.employee_id){
-      r.employees = emps.find(e => e.id === r.employee_id) || null;
+      r.employees = allEmps.find(e => e.id === r.employee_id) || null;
     }
     return r;
   });
