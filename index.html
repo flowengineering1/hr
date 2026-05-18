@@ -8,6 +8,9 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Flow HR">
 <meta name="theme-color" content="#1565C0">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
 <title>Flow HR System</title>
@@ -481,7 +484,7 @@ input[type=file]{display:none}
     </div>
   </div>
 
-  <div class="login-version">Flow HR v3.75 · © 2026 Flow Engineering and Service Co.,Ltd.</div>
+  <div class="login-version">Flow HR v3.81 · © 2026 Flow Engineering and Service Co.,Ltd.</div>
 </div>
 
 <!-- ============ DESKTOP ============ -->
@@ -637,11 +640,26 @@ input[type=file]{display:none}
               <div style="flex:1"><div style="font-weight:500" id="d-gps-txt">กำลังตรวจสอบ...</div><div style="color:#78909C;font-size:10px" id="d-gps-det">กรุณารอ</div></div>
             </div>
             <div id="d-mood"></div>
-            <div style="text-align:center;padding:12px 0">
-              <div class="ring-wrap" onclick="doCheckin('d')">
-                <div class="ra"></div><div class="rb"></div><div class="rp"></div>
-                <button class="ci-btn ci-ready" id="d-ci-btn"><i class="ti ti-map-pin" id="d-ci-ico" aria-hidden="true"></i><div class="ci-lbl" id="d-ci-lbl">เช็คอิน</div></button>
+            <div id="d-ci-status-bar" style="background:#F1F5F9;border-radius:12px;padding:10px 14px;margin-bottom:12px;display:none;align-items:center;gap:10px">
+              <div style="width:10px;height:10px;border-radius:50%;background:#22C55E;flex-shrink:0;box-shadow:0 0 0 3px rgba(34,197,94,.2)"></div>
+              <div style="flex:1;font-size:12px">
+                <span style="font-weight:600;color:#065F46">กำลังทำงาน</span>
+                <span style="color:#6B7280"> · เช็คอินเมื่อ </span>
+                <span id="d-ci-in-time" style="font-weight:600;color:#0F1923">—</span>
               </div>
+              <div id="d-ci-timer" style="font-size:11px;color:#6B7280;font-family:monospace">00:00</div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:8px">
+              <button id="d-btn-checkin" onclick="doCheckIn('d')"
+                style="padding:16px;border-radius:14px;border:none;cursor:pointer;font-family:inherit;font-size:14px;font-weight:700;display:flex;flex-direction:column;align-items:center;gap:6px;transition:all .2s;background:#1252A3;color:#fff;box-shadow:0 4px 12px rgba(18,82,163,.3)">
+                <i class="ti ti-map-pin" style="font-size:24px" aria-hidden="true"></i>
+                เช็คอิน
+              </button>
+              <button id="d-btn-checkout" onclick="doCheckOut('d')" disabled
+                style="padding:16px;border-radius:14px;border:none;cursor:not-allowed;font-family:inherit;font-size:14px;font-weight:700;display:flex;flex-direction:column;align-items:center;gap:6px;transition:all .2s;background:#F3F4F6;color:#9CA3AF">
+                <i class="ti ti-door-exit" style="font-size:24px" aria-hidden="true"></i>
+                เช็คเอาท์
+              </button>
             </div>
             <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
               <div style="background:#F5F7FA;border-radius:10px;padding:10px;text-align:center"><div style="font-size:16px;font-weight:700;color:var(--blue)" id="d-ci-in">--:--</div><div style="font-size:10px;color:#9E9E9E;margin-top:2px">เวลาเข้า</div></div>
@@ -664,6 +682,10 @@ input[type=file]{display:none}
             onchange="loadAttendDashboard()">
           <button class="btn-o" onclick="loadAttendDashboard()">
             <i class="ti ti-refresh" aria-hidden="true"></i>รีเฟรช
+          </button>
+          <button id="att-auto-checkout-btn" class="btn-o" onclick="autoCheckoutAll()"
+            style="color:#92400E;border-color:#FCD34D;display:none">
+            <i class="ti ti-clock-check" aria-hidden="true"></i>Auto Checkout
           </button>
         </div>
 
@@ -733,6 +755,7 @@ input[type=file]{display:none}
               <th>ชั่วโมง</th>
               <th>สถานะ</th>
               <th>หักสาย</th>
+              <th></th>
             </tr></thead>
             <tbody id="att-table-body"></tbody>
           </table>
@@ -1463,7 +1486,7 @@ function goD(p){
   const t={dashboard:'Dashboard',employees:'ข้อมูลพนักงาน',checkin:'เช็คอิน / เวลา',leave:'การลา',payroll:'เงินเดือน',payslip:'สลิปเงินเดือน',offices:'จัดการสาขา',settings:'ตั้งค่า',profile:'โปรไฟล์'};
   document.getElementById('d-title').textContent=t[p]||p;
   document.getElementById('d-content').scrollTo(0,0);
-  if(p==='checkin'){initCI('d');loadTeamAttend();}
+  if(p==='checkin'){initCI('d');loadTeamAttend();loadTodayCheckIn();}
   if(p==='attendance'){loadAttendDashboard();}
   if(p==='payroll'){initPRSelects();renderPayrollTable();}
   if(p==='payslip'){initPSSelects('d');renderDPS();}
@@ -2397,6 +2420,201 @@ function checkGPS(){
 }
 
 function getMood(){const m=(TODAY.getHours()-8)*60+TODAY.getMinutes();return m<=-30?'vip':m<0?'early':m<=5?'ontime':'late';}
+
+// ============================================================
+// CHECK IN / CHECK OUT — 2 ปุ่มแยกกัน
+// ============================================================
+let currentAttendId = null; // id ของ attendance record ที่กำลัง active
+
+async function doCheckIn(pfx){
+  const bar = document.getElementById(`${pfx}-gps-bar`);
+  if(!bar || bar.classList.contains('gps-fail')){
+    showToast('อยู่นอกพื้นที่หรือ GPS ไม่มีสัญญาณ'); return;
+  }
+  if(bar.classList.contains('gps-wait')){
+    showToast('กำลังตรวจสอบ GPS...'); return;
+  }
+
+  // ตรวจว่าเช็คอินวันนี้ไปแล้วไหม
+  const td = todayS();
+  const{data:existing} = await db.from('attendances')
+    .select('id,check_in,check_out')
+    .eq('employee_id', currentUser.id)
+    .gte('check_in', td+'T00:00:00')
+    .is('check_out', null)
+    .limit(1);
+
+  if(existing && existing.length > 0){
+    showToast('คุณเช็คอินไปแล้ววันนี้'); 
+    setCheckedIn(pfx, existing[0]);
+    return;
+  }
+
+  const mood = getMood ? getMood() : 'happy';
+  const md   = MOODS[mood];
+
+  navigator.geolocation.getCurrentPosition(async pos => {
+    const off  = offices[offIdx];
+    const dist = off ? Math.round(hvs(pos.coords.latitude,pos.coords.longitude,off.lat,off.lng)) : null;
+    const now  = new Date();
+
+    const{data:att, error} = await db.from('attendances').insert({
+      employee_id:  currentUser.id,
+      check_in:     now.toISOString(),
+      lat:          pos.coords.latitude,
+      lng:          pos.coords.longitude,
+      distance_m:   dist,
+      gps_accuracy: Math.round(pos.coords.accuracy),
+      office_id:    off?.id || null,
+      status:       'office',
+      type:         'official',
+    }).select().single();
+
+    if(error){ showToast('เกิดข้อผิดพลาด: '+error.message); return; }
+
+    currentAttendId = att.id;
+    setCheckedIn(pfx, att);
+
+    // แสดง mood
+    if(md) ['d','m'].forEach(p=>{
+      const mw=document.getElementById(`${p}-mood`);
+      if(mw) mw.innerHTML=`<div class="mood ${md.c}"><div class="mood-e">${md.e}</div><div style="flex:1"><div class="mood-t">${md.t}</div><div class="mood-m">${md.m}</div></div></div>`;
+    });
+
+    showToast('เช็คอินสำเร็จ '+fmtT(now)+' ✅');
+    loadTeamAttend();
+  }, ()=>{ showToast('ไม่สามารถดึง GPS ได้'); });
+}
+
+function setCheckedIn(pfx, att){
+  currentAttendId = att.id;
+  const ciTime = new Date(att.check_in);
+
+  // อัปเดต status bar
+  ['d','m'].forEach(p=>{
+    const sb = document.getElementById(`${p}-ci-status-bar`);
+    if(sb){ sb.style.display='flex'; }
+    const t = document.getElementById(`${p}-ci-in-time`);
+    if(t) t.textContent = fmtT(ciTime);
+  });
+
+  // ปุ่ม check in → disabled, check out → active
+  setButtonState('checkedin');
+
+  // เริ่ม timer
+  if(workTimer) clearInterval(workTimer);
+  workTimer = setInterval(()=>{
+    const diff = new Date() - ciTime;
+    const h    = Math.floor(diff/3600000);
+    const m2   = Math.floor((diff%3600000)/60000);
+    ['d','m'].forEach(p=>{
+      const el = document.getElementById(`${p}-ci-timer`);
+      if(el) el.textContent = h+':'+p2(m2);
+      const el2 = document.getElementById(`${p}-ci-hrs`);
+      if(el2) el2.textContent = h+':'+p2(m2);
+    });
+  }, 10000);
+}
+
+async function doCheckOut(pfx){
+  if(!currentAttendId){
+    // หา attendance ที่ยังไม่ได้ check out
+    const td = todayS();
+    const{data} = await db.from('attendances')
+      .select('id,check_in')
+      .eq('employee_id', currentUser.id)
+      .gte('check_in', td+'T00:00:00')
+      .is('check_out', null)
+      .limit(1);
+    if(!data || !data.length){ showToast('ไม่พบข้อมูลการเช็คอินวันนี้'); return; }
+    currentAttendId = data[0].id;
+  }
+
+  const now = new Date();
+  const{error} = await db.from('attendances')
+    .update({check_out: now.toISOString()})
+    .eq('id', currentAttendId);
+
+  if(error){ showToast('เกิดข้อผิดพลาด: '+error.message); return; }
+
+  if(workTimer){ clearInterval(workTimer); workTimer=null; }
+  currentAttendId = null;
+
+  // อัปเดต UI
+  ['d','m'].forEach(p=>{
+    const sb = document.getElementById(`${p}-ci-status-bar`);
+    if(sb){
+      sb.style.background='#F0FDF4';
+      sb.style.display='flex';
+      sb.innerHTML=`<div style="width:10px;height:10px;border-radius:50%;background:#6B7280;flex-shrink:0"></div>
+        <div style="font-size:12px;color:#374151">เช็คเอาท์แล้ว · <b>${fmtT(now)}</b></div>`;
+    }
+    const el=document.getElementById(`${p}-ci-out`);
+    if(el) el.textContent=fmtT(now);
+  });
+
+  setButtonState('done');
+  showToast('เช็คเอาท์สำเร็จ '+fmtT(now)+' 🏁');
+  loadTeamAttend();
+}
+
+function setButtonState(state){
+  // state: 'ready' | 'checkedin' | 'done'
+  ['d','m'].forEach(p=>{
+    const btnIn  = document.getElementById(`${p}-btn-checkin`);
+    const btnOut = document.getElementById(`${p}-btn-checkout`);
+    if(!btnIn || !btnOut) return;
+
+    if(state === 'ready'){
+      btnIn.disabled  = false;
+      btnIn.style.cssText  = 'padding:16px;border-radius:14px;border:none;cursor:pointer;font-family:inherit;font-size:14px;font-weight:700;display:flex;flex-direction:column;align-items:center;gap:6px;transition:all .2s;background:#1252A3;color:#fff;box-shadow:0 4px 12px rgba(18,82,163,.3);width:100%';
+      btnOut.disabled = true;
+      btnOut.style.cssText = 'padding:16px;border-radius:14px;border:none;cursor:not-allowed;font-family:inherit;font-size:14px;font-weight:700;display:flex;flex-direction:column;align-items:center;gap:6px;transition:all .2s;background:#F3F4F6;color:#9CA3AF;width:100%';
+    } else if(state === 'checkedin'){
+      btnIn.disabled  = true;
+      btnIn.style.cssText  = 'padding:16px;border-radius:14px;border:none;cursor:not-allowed;font-family:inherit;font-size:14px;font-weight:700;display:flex;flex-direction:column;align-items:center;gap:6px;transition:all .2s;background:#DCFCE7;color:#15803D;width:100%';
+      btnOut.disabled = false;
+      btnOut.style.cssText = 'padding:16px;border-radius:14px;border:none;cursor:pointer;font-family:inherit;font-size:14px;font-weight:700;display:flex;flex-direction:column;align-items:center;gap:6px;transition:all .2s;background:#EF4444;color:#fff;box-shadow:0 4px 12px rgba(239,68,68,.3);width:100%';
+    } else { // done
+      btnIn.disabled  = true;
+      btnIn.style.cssText  = 'padding:16px;border-radius:14px;border:none;cursor:not-allowed;font-family:inherit;font-size:14px;font-weight:700;display:flex;flex-direction:column;align-items:center;gap:6px;background:#F3F4F6;color:#9CA3AF;width:100%';
+      btnOut.disabled = true;
+      btnOut.style.cssText = 'padding:16px;border-radius:14px;border:none;cursor:not-allowed;font-family:inherit;font-size:14px;font-weight:700;display:flex;flex-direction:column;align-items:center;gap:6px;background:#F3F4F6;color:#9CA3AF;width:100%';
+    }
+  });
+}
+
+// โหลดสถานะเช็คอินวันนี้ตอนเปิดหน้า
+async function loadTodayCheckIn(){
+  const td = todayS();
+  const{data} = await db.from('attendances')
+    .select('id,check_in,check_out')
+    .eq('employee_id', currentUser.id)
+    .gte('check_in', td+'T00:00:00')
+    .order('check_in', {ascending:false})
+    .limit(1);
+
+  if(!data || !data.length){
+    setButtonState('ready'); return;
+  }
+  const att = data[0];
+  if(!att.check_out){
+    setCheckedIn('d', att); // ยังไม่ได้ checkout
+  } else {
+    // checkout แล้ว
+    ['d','m'].forEach(p=>{
+      const sb = document.getElementById(`${p}-ci-status-bar`);
+      if(sb){
+        sb.style.display='flex';
+        sb.style.background='#F0FDF4';
+        sb.innerHTML=`<div style="width:10px;height:10px;border-radius:50%;background:#6B7280;flex-shrink:0"></div>
+          <div style="font-size:12px;color:#374151">เช็คอินเมื่อ <b>${fmtT(att.check_in)}</b> · เช็คเอาท์ <b>${fmtT(att.check_out)}</b></div>`;
+      }
+    });
+    setButtonState('done');
+  }
+}
+
 async function doCheckin(pfx){
   const bar=document.getElementById(`${pfx}-gps-bar`);
   if(!bar||bar.classList.contains('gps-fail')){showToast('อยู่นอกพื้นที่หรือ GPS ไม่มีสัญญาณ');return;}
@@ -2433,10 +2651,48 @@ async function doCheckin(pfx){
   }
 }
 async function loadTeamAttend(){
-  const td=todayS();
-  const{data}=await db.from('attendances').select('*').gte('check_in',td+'T00:00:00').order('check_in',{ascending:false}).limit(10);
-  const h=data?.length?data.map(r=>`<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:.5px solid #F0F0F0;font-size:12px"><div style="width:32px;height:32px;border-radius:8px;background:var(--green-l);display:flex;align-items:center;justify-content:center"><i class="ti ti-login" style="color:var(--green)" aria-hidden="true"></i></div><div style="flex:1"><div style="font-weight:500">${fmtT(r.check_in)}</div><div style="font-size:10px;color:#9E9E9E">ห่าง ${r.distance_m||'—'}ม. · ±${r.gps_accuracy||'—'}ม.</div></div><span class="badge ${r.check_out?'b-green':'b-blue'}">${r.check_out?'ออกแล้ว':'กำลังทำงาน'}</span></div>`).join(''):'<div style="text-align:center;color:#B0BEC5;padding:16px;font-size:12px">ยังไม่มีการเช็คอินวันนี้</div>';
-  ['d-attend-today','d-team-attend','m-team-attend'].forEach(id=>{const el=document.getElementById(id);if(el)el.innerHTML=h;});
+  const td = todayS();
+  // join employees เพื่อดึงชื่อและรูป
+  const{data} = await db.from('attendances')
+    .select('*, employees!attendances_employee_id_fkey(id,name,first_name,last_name,nickname,department,photo_url)')
+    .gte('check_in', td+'T00:00:00')
+    .order('check_in', {ascending:false})
+    .limit(30);
+
+  const h = data?.length ? data.map(r => {
+    const e    = r.employees || {};
+    const name = e.first_name ? (e.first_name+' '+(e.last_name||'')) : (e.name||'—');
+    const nick = e.nickname ? ' ('+e.nickname+')' : '';
+    const dept = e.department || '';
+    const avBg = DEPT_BG[dept] || '#E3F2FD';
+    const avCol= DEPT_COL[dept] || '#1565C0';
+    const avEl = e.photo_url
+      ? `<img src="${e.photo_url}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`
+      : `<div class="ini" style="font-size:11px;font-weight:700;color:${avCol}">${ini(name)}</div>`;
+    const ciTime = fmtT(r.check_in);
+    const coTime = r.check_out ? fmtT(r.check_out) : null;
+
+    return `<div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:.5px solid #F1F5F9">
+      <div class="av" style="width:36px;height:36px;background:${avBg};flex-shrink:0">${avEl}</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
+          ${name}${nick}
+        </div>
+        <div style="font-size:10px;color:#9CA3AF;margin-top:2px">
+          เข้า ${ciTime}${coTime?' · ออก '+coTime:''}
+          ${r.distance_m!=null?' · '+r.distance_m+'ม.':''}
+        </div>
+      </div>
+      <span class="badge ${r.check_out?'b-green':'b-blue'}" style="flex-shrink:0">
+        ${r.check_out?'ออกแล้ว':'กำลังทำงาน'}
+      </span>
+    </div>`;
+  }).join('')
+  : '<div style="text-align:center;color:#B0BEC5;padding:20px;font-size:12px">ยังไม่มีการเช็คอินวันนี้</div>';
+
+  ['d-attend-today','d-team-attend','m-team-attend'].forEach(id=>{
+    const el=document.getElementById(id); if(el) el.innerHTML=h;
+  });
 }
 
 // ============================================================
@@ -2841,6 +3097,9 @@ async function loadAttendDashboard(){
     const d = new Date(attendDate);
     lbl.textContent = d.toLocaleDateString('th-TH',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
   }
+  // แสดงปุ่ม Auto Checkout เฉพาะ HR
+  const autoBtn = document.getElementById('att-auto-checkout-btn');
+  if(autoBtn) autoBtn.style.display = can('emp_edit') ? '' : 'none';
 
   // ดึง attendance วันนี้ + join employees
   const{data: attData} = await db.from('attendances')
@@ -3016,6 +3275,58 @@ function exportAttendCSV(){
   a.click();
 }
 
+
+// แก้ไข check_out (HR only)
+async function editCheckout(attId, currentTime){
+  const newTime = prompt('แก้ไขเวลาออกงาน (HH:MM)', currentTime || '17:30');
+  if(!newTime) return;
+
+  // สร้าง full datetime
+  const dateStr = document.getElementById('att-date-pick')?.value || todayS();
+  const fullDT  = dateStr + 'T' + newTime + ':00';
+
+  const{error} = await db.from('attendances')
+    .update({check_out: fullDT})
+    .eq('id', attId);
+
+  if(error){ showToast('เกิดข้อผิดพลาด: '+error.message); return; }
+  showToast('แก้ไขเวลาออกสำเร็จ ✅');
+  loadAttendDashboard();
+}
+
+// Auto checkout — ใส่เวลาเลิกงานให้คนที่ลืม scan ออก (HR only)
+async function autoCheckoutAll(){
+  const dateStr = document.getElementById('att-date-pick')?.value || todayS();
+  const ws = await db.from('work_settings').select('work_end').limit(1);
+  const workEnd = ws?.data?.[0]?.work_end || '17:30';
+  const checkoutDT = dateStr + 'T' + workEnd + ':00';
+
+  const{data:missing} = await db.from('attendances')
+    .select('id,employees!attendances_employee_id_fkey(name)')
+    .gte('check_in', dateStr+'T00:00:00')
+    .lte('check_in', dateStr+'T23:59:59')
+    .is('check_out', null);
+
+  if(!missing || !missing.length){
+    showToast('ไม่มีพนักงานที่ลืม scan ออก ✅'); return;
+  }
+
+  showConfirm({
+    icon: '🕐', iconBg:'#FEF3C7', iconColor:'#92400E',
+    title: 'Auto Checkout',
+    msg: `พนักงาน ${missing.length} คนที่ลืม scan ออก<br>จะใส่เวลาออก <b>${workEnd}</b> ให้อัตโนมัติ`,
+    okText: 'ยืนยัน Auto Checkout', okColor:'#B45309',
+    onOk: async () => {
+      const ids = missing.map(m=>m.id);
+      const{error} = await db.from('attendances')
+        .update({check_out: checkoutDT})
+        .in('id', ids);
+      if(error){ showToast('เกิดข้อผิดพลาด'); return; }
+      showToast(`Auto checkout ${missing.length} คน เวลา ${workEnd} ✅`);
+      loadAttendDashboard();
+    }
+  });
+}
 // ============================================================
 // COMPANY HOLIDAYS
 // ============================================================
