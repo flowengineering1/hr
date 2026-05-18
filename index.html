@@ -333,6 +333,15 @@ input[type=file]{display:none}
 .hbd-av{width:60px;height:60px;border-radius:50%;border:3px solid rgba(255,255,255,.5);flex-shrink:0;overflow:hidden;background:rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:700;color:#fff}
 .hbd-av img{width:100%;height:100%;object-fit:cover}
 
+/* ===== LATE DETAIL POPUP ===== */
+.late-popup-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9998;align-items:center;justify-content:center;padding:20px}
+.late-popup-bg.show{display:flex}
+.late-popup{background:#fff;border-radius:20px;padding:0;width:100%;max-width:420px;max-height:80vh;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.3)}
+.late-popup-hdr{padding:16px 20px;border-bottom:1px solid #F1F5F9;display:flex;align-items:center;justify-content:space-between}
+.late-popup-body{overflow-y:auto;padding:12px 20px 20px}
+.late-row{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid #F9FAFB}
+.late-row:last-child{border-bottom:none}
+
 /* ===== CONFIRM DIALOG ===== */
 .confirm-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;align-items:center;justify-content:center;padding:24px}
 .confirm-bg.show{display:flex}
@@ -484,7 +493,7 @@ input[type=file]{display:none}
     </div>
   </div>
 
-  <div class="login-version">Flow HR v3.83 · © 2026 Flow Engineering and Service Co.,Ltd.</div>
+  <div class="login-version">Flow HR v3.89 · © 2026 Flow Engineering and Service Co.,Ltd.</div>
 </div>
 
 <!-- ============ DESKTOP ============ -->
@@ -834,7 +843,7 @@ input[type=file]{display:none}
             <select class="f-inp f-sel" id="d-pr-month" style="width:200px" onchange="renderPayrollTable()"></select>
             <button class="btn-p" onclick="showToast('ประมวลผลเงินเดือนสำเร็จ')"><i class="ti ti-calculator" aria-hidden="true"></i>ประมวลผล</button>
           </div>
-          <table class="emp-table"><thead><tr><th>พนักงาน</th><th>แผนก</th><th>เงินเดือน</th><th style="color:#92400E">OT</th><th style="color:#065F46">เบี้ยขยัน</th><th style="color:var(--red)">หักสาย</th><th>SSO</th><th>ภาษี</th><th style="color:#1D4ED8">สุทธิ</th><th>สลิป</th></tr></thead>
+          <table class="emp-table"><thead><tr><th>พนักงาน</th><th>แผนก</th><th>เงินเดือน</th><th style="color:#92400E">OT</th><th style="color:#065F46">เบี้ยขยัน</th><th style="color:var(--red)">หักสาย</th><th>SSO</th><th>ภาษี</th><th style="color:#059669">ก่อนหักสาย</th><th style="color:#1D4ED8">หลังหักสาย</th><th>สลิป</th></tr></thead>
           <tbody id="d-pr-tbody"></tbody></table>
         </div>
       </div>
@@ -2736,6 +2745,204 @@ function renderPayrollTable(){
   calcPayroll();
 }
 
+
+// คำนวณวันทำงาน (จ-ศ ไม่รวมวันหยุด) ในเดือน
+async function getWorkDays(year, month){
+  const startDate = `${year}-${String(month+1).padStart(2,'0')}-01`;
+  const endDate   = new Date(year,month+1,0).toISOString().slice(0,10);
+
+  // ดึงวันหยุดนักขัตฤกษ์ + วันหยุดบริษัทในเดือนนั้น
+  const[{data:pubHols},{data:compHols}] = await Promise.all([
+    db.from('public_holidays').select('holiday_date').gte('holiday_date',startDate).lte('holiday_date',endDate),
+    db.from('company_holidays').select('holiday_date').gte('holiday_date',startDate).lte('holiday_date',endDate),
+  ]);
+  const holidays = new Set([
+    ...(pubHols||[]).map(h=>h.holiday_date),
+    ...(compHols||[]).map(h=>h.holiday_date),
+  ]);
+
+  const workDays = [];
+  const today = new Date();
+  const d = new Date(startDate);
+  const end = new Date(endDate);
+  while(d <= end && d <= today){
+    const dow = d.getDay();
+    const ds  = d.toISOString().slice(0,10);
+    if(dow !== 0 && dow !== 6 && !holidays.has(ds)){
+      workDays.push(ds);
+    }
+    d.setDate(d.getDate()+1);
+  }
+  return workDays;
+}
+
+// ตรวจว่า employee เช็คอินครบทุกวันทำงานไหม
+async function checkDiligence(empId, year, month){
+  const workDays = await getWorkDays(year, month);
+  if(!workDays.length) return {eligible:true, reason:'', missedDays:[]};
+
+  const startDate = `${year}-${String(month+1).padStart(2,'0')}-01`;
+  const endDate   = new Date(year,month+1,0).toISOString().slice(0,10);
+
+  // ดึง attendance
+  const{data:att} = await db.from('attendances')
+    .select('check_in,check_out')
+    .eq('employee_id', empId)
+    .gte('check_in', startDate+'T00:00:00')
+    .lte('check_in', endDate+'T23:59:59');
+
+  // ดึง leaves ที่อนุมัติ (ลาป่วย/กิจ = ไม่ได้เบี้ย, ลาพักร้อน = ยังได้)
+  const{data:lvs} = await db.from('leaves')
+    .select('start_date,end_date,type,status')
+    .eq('employee_id', empId)
+    .eq('status','approved')
+    .gte('start_date', startDate)
+    .lte('end_date', endDate);
+
+  const attDates   = new Set((att||[]).map(a=>a.check_in.slice(0,10)));
+  const noCheckout = (att||[]).filter(a=>!a.check_out).map(a=>a.check_in.slice(0,10));
+
+  // วันที่ลาพักร้อน (ยังได้เบี้ย)
+  const annualDates = new Set();
+  (lvs||[]).filter(l=>l.type==='annual').forEach(l=>{
+    const s=new Date(l.start_date), e=new Date(l.end_date);
+    for(let d=new Date(s);d<=e;d.setDate(d.getDate()+1)){
+      annualDates.add(d.toISOString().slice(0,10));
+    }
+  });
+
+  // หาวันที่ขาด/ลืมเช็คอิน
+  const missedDays = workDays.filter(d =>
+    !attDates.has(d) && !annualDates.has(d)
+  );
+
+  // หาวันที่ลืม checkout
+  const noCheckoutDays = noCheckout.filter(d => workDays.includes(d));
+
+  const reasons = [];
+  if(missedDays.length) reasons.push('ขาด/ไม่เช็คอิน '+missedDays.length+' วัน');
+  if(noCheckoutDays.length) reasons.push('ลืมเช็คเอาท์ '+noCheckoutDays.length+' วัน');
+
+  return {
+    eligible: missedDays.length===0 && noCheckoutDays.length===0,
+    reason:   reasons.join(' · '),
+    missedDays,
+    noCheckoutDays,
+  };
+}
+
+
+// ============================================================
+// LATE DETAIL POPUP
+// ============================================================
+function closeLatePopup(e){
+  const el = document.getElementById('late-popup');
+  if(!el) return;
+  if(e && e.target !== el) return;
+  el.classList.remove('show');
+}
+
+async function showLateDetail(empId, month, year){
+  const emp = emps.find(e=>e.id===empId);
+  if(!emp) return;
+
+  const name = (emp.first_name||emp.name||'—')+' '+(emp.last_name||'');
+  document.getElementById('late-popup-name').textContent = name.trim();
+  document.getElementById('late-popup-month').textContent =
+    'รายละเอียดการมาสาย · '+MTH_F[month]+' '+year;
+  document.getElementById('late-popup-body').innerHTML =
+    '<div style="text-align:center;color:#B0BEC5;padding:20px"><i class="ti ti-loader-2" style="animation:spin 1s linear infinite;font-size:20px"></i></div>';
+
+  document.getElementById('late-popup').classList.add('show');
+
+  // ดึง settings
+  const{data:ws} = await db.from('work_settings')
+    .select('work_start,late_after_mins,late_deduct_per_min').limit(1);
+  const workStart     = ws?.[0]?.work_start||'08:00';
+  const lateAfterMins = ws?.[0]?.late_after_mins||0;
+  const lateRate      = ws?.[0]?.late_deduct_per_min||1;
+  const [wh,wm]       = workStart.split(':').map(Number);
+  const workStartMins = wh*60+wm+lateAfterMins;
+
+  const startDate = `${year}-${String(month+1).padStart(2,'0')}-01`;
+  const endDate   = new Date(year,month+1,0).toISOString().slice(0,10);
+
+  const{data:att} = await db.from('attendances')
+    .select('check_in,check_out')
+    .eq('employee_id', empId)
+    .gte('check_in', startDate+'T00:00:00')
+    .lte('check_in', endDate+'T23:59:59')
+    .order('check_in');
+
+  if(!att||!att.length){
+    document.getElementById('late-popup-body').innerHTML =
+      '<div style="text-align:center;color:#B0BEC5;padding:20px;font-size:12px">ไม่มีข้อมูลการเช็คอิน</div>';
+    return;
+  }
+
+  const days_th = ['อา','จ','อ','พ','พฤ','ศ','ส'];
+  let totalMins = 0, totalDeduct = 0, lateCount = 0;
+
+  const rows = att.map(a => {
+    const ci    = new Date(a.check_in);
+    const ciM   = ci.getHours()*60+ci.getMinutes();
+    const late  = Math.max(0, ciM - workStartMins);
+    const deduct= Math.round(late * lateRate);
+    const dateStr = ci.toLocaleDateString('th-TH',{day:'numeric',month:'short'});
+    const dow   = days_th[ci.getDay()];
+    const ciStr = ci.toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'});
+    const coStr = a.check_out
+      ? new Date(a.check_out).toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'})
+      : null;
+
+    if(late > 0){ totalMins += late; totalDeduct += deduct; lateCount++; }
+
+    const isLate = late > 0;
+    return `<div class="late-row">
+      <div style="width:48px;text-align:center;flex-shrink:0">
+        <div style="font-size:11px;font-weight:700;color:${isLate?'#9A3412':'#374151'}">${dow}</div>
+        <div style="font-size:13px;font-weight:700;color:${isLate?'#9A3412':'#374151'}">${dateStr}</div>
+      </div>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13px;font-weight:500;color:${isLate?'#9A3412':'#0F1923'}">
+          เข้า ${ciStr}${coStr?' · ออก '+coStr:''}
+          ${!a.check_out?'<span style="background:#FEE2E2;color:#991B1B;font-size:9px;font-weight:600;padding:1px 6px;border-radius:8px;margin-left:4px">ลืม checkout</span>':''}
+        </div>
+        <div style="font-size:10px;color:#9CA3AF;margin-top:2px">
+          ${isLate?`สาย <b style="color:#9A3412">${late} นาที</b> · หัก <b style="color:#9A3412">-฿${deduct}</b>`:'ตรงเวลา ✓'}
+        </div>
+      </div>
+      <div style="flex-shrink:0">
+        ${isLate
+          ? `<span class="badge b-orange">${late} นาที</span>`
+          : `<span class="badge b-green">ตรงเวลา</span>`}
+      </div>
+    </div>`;
+  }).join('');
+
+  // Summary
+  const summary = `
+    <div style="background:#FFF7F7;border:1px solid #FEE2E2;border-radius:12px;padding:12px 16px;margin-bottom:12px">
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;text-align:center">
+        <div>
+          <div style="font-size:18px;font-weight:700;color:#9A3412">${lateCount}</div>
+          <div style="font-size:10px;color:#6B7280">วันที่สาย</div>
+        </div>
+        <div>
+          <div style="font-size:18px;font-weight:700;color:#9A3412">${totalMins}</div>
+          <div style="font-size:10px;color:#6B7280">นาทีรวม</div>
+        </div>
+        <div>
+          <div style="font-size:18px;font-weight:700;color:#9A3412">฿${totalDeduct}</div>
+          <div style="font-size:10px;color:#6B7280">หักรวม</div>
+        </div>
+      </div>
+    </div>`;
+
+  document.getElementById('late-popup-body').innerHTML =
+    (lateCount > 0 ? summary : '') + rows;
+}
+
 // ============================================================
 // SSO & TAX CALCULATION (ตามกฎหมายไทย)
 // ============================================================
@@ -2814,7 +3021,7 @@ async function calcPayroll(){
   const workStartMins = wh*60 + wm + lateAfterMins;
 
   // คำนวณต่อ employee
-  const rows = emps.map(e => {
+  const rows = await Promise.all(emps.map(async e => {
     const sal = e.salary||0;
 
     // รวม OT
@@ -2835,9 +3042,10 @@ async function calcPayroll(){
     });
     lateDeduct = Math.round(lateMins * lateRate);
 
-    // เบี้ยขยัน — ถ้าสายหรือขาด ไม่ได้
-    // (simplified: ถ้ามีหักสาย > 0 หรือ diligence_eligible=false ไม่ได้)
-    const dil = (e.diligence_eligible!==false && lateMins===0) ? dilBonus : 0;
+    // เบี้ยขยัน — ตรวจครบ: มีสิทธิ์ + ไม่สาย + ไม่ขาด + ไม่ลืม checkout
+    const dilCheck = await checkDiligence(e.id, m, y);
+    const dil = (e.diligence_eligible!==false && lateMins===0 && dilCheck.eligible) ? dilBonus : 0;
+    const dilReason = !dilCheck.eligible ? dilCheck.reason : (lateMins>0 ? 'สาย '+lateMins+' นาที' : '');
 
     // SSO + ภาษี (ตามกฎหมายไทย)
     const sso = calcSSO(sal, e.sso_eligible!==false);
@@ -2845,7 +3053,7 @@ async function calcPayroll(){
     const net   = sal + otAmount + dil - sso - tax - lateDeduct;
 
     return { e, sal, otAmount, otMins, lateMins, lateDeduct, dil, sso, tax, net };
-  });
+  }));
 
   // KPI
   const eligible = rows.filter(r=>r.e.is_active);
@@ -2889,20 +3097,25 @@ async function calcPayroll(){
         ${canSee && otAmount>0 ? '+฿'+Math.round(otAmount).toLocaleString('th-TH')+'<div style="font-size:9px;color:#9E9E9E">'+Math.round(otMins/60*10)/10+' ชม.</div>' : canSee?'—':'—'}
       </td>
       <td>
-        ${e.diligence_eligible!==false && lateMins===0
-          ? `<span style="color:#065F46;font-weight:600">+฿${dil}</span>`
-          : e.diligence_eligible===false
-            ? `<span style="color:#9CA3AF;font-size:11px">ไม่มีสิทธิ์</span>`
-            : `<span style="color:#9A3412;font-size:11px">สาย ${lateMins} นาที</span>`}
+        ${e.diligence_eligible===false
+          ? '<span style="color:#9CA3AF;font-size:11px">ไม่มีสิทธิ์</span>'
+          : dil>0
+            ? `<span style="color:#065F46;font-weight:600">+฿${dil}</span>`
+            : `<span style="color:#9A3412;font-size:11px">ไม่ได้รับ${dilReason?' · '+dilReason:''}</span>`}
       </td>
-      <td style="color:var(--red)">
+      <td>
         ${canSee && lateDeduct>0
-          ? `-฿${lateDeduct.toLocaleString('th-TH')}<div style="font-size:9px;color:#9E9E9E">${lateMins} นาที</div>`
-          : canSee?'—':'—'}
+          ? `<button onclick="showLateDetail('${e.id}',${m},${y})"
+              style="background:#FFF1F1;border:1px solid #FEE2E2;border-radius:8px;padding:5px 10px;cursor:pointer;font-family:inherit;text-align:left;display:block">
+              <div style="color:#9A3412;font-weight:700;font-size:13px">-฿${lateDeduct.toLocaleString('th-TH')}</div>
+              <div style="font-size:9px;color:#9A3412">${lateMins} นาที · ดูรายละเอียด 🔍</div>
+            </button>`
+          : `<span style="color:#9CA3AF">${canSee?'—':'—'}</span>`}
       </td>
       <td style="color:var(--red)">${fmt(sso)}</td>
       <td style="color:var(--red)">${fmt(tax)}</td>
-      <td style="font-weight:700;color:#1D4ED8;font-size:14px">${fmt(net)}</td>
+      <td style="font-weight:600;color:#059669">${canSee ? fmt(net+lateDeduct) : '—'}</td>
+      <td style="font-weight:700;color:#1D4ED8;font-size:14px">${canSee ? fmt(net) : '—'}${lateDeduct>0&&canSee ? '<div style="font-size:9px;color:#9A3412">-'+fmt(lateDeduct)+'</div>' : ''}</td>
       <td>
         <button onclick="gotoPayslip('${e.id}')"
           style="padding:5px 10px;border:1px solid var(--border);border-radius:7px;background:#fff;font-size:12px;cursor:pointer;color:#1565C0;display:flex;align-items:center;gap:4px">
@@ -2953,53 +3166,126 @@ function initPSSelects(pfx){
 }
 function renderDPS(){renderPS('d','d-ps-area');}
 function renderMPS(){renderPS('m','m-ps-area');}
-function renderPS(pfx,aId){
-  const pre=pfx==='d'?'d':'m';
-  const empId=document.getElementById(`${pre}-ps-emp`)?.value;
-  const emp=emps.find(e=>e.id==empId);
-  const area=document.getElementById(aId);if(!area)return;
-  if(!emp){area.innerHTML='<div style="text-align:center;color:#B0BEC5;padding:30px;font-size:12px">เลือกพนักงาน</div>';return;}
-  // ตรวจสิทธิ์ — ดูสลิปตัวเองได้เสมอ แต่คนอื่นต้องมีสิทธิ์
+async function renderPS(pfx,aId){
+  const pre = pfx==='d'?'d':'m';
+  const empId = document.getElementById(`${pre}-ps-emp`)?.value;
+  const emp   = emps.find(e=>e.id==empId);
+  const area  = document.getElementById(aId);
+  if(!area) return;
+  if(!emp){ area.innerHTML='<div style="text-align:center;color:#B0BEC5;padding:30px;font-size:12px">เลือกพนักงาน</div>'; return; }
   if(!canSeeSalary(emp.id)){
-    const nm = emp.first_name||emp.name||'';
-    area.innerHTML = '<div class="no-access"><i class="ti ti-lock" aria-hidden="true"></i><h3>ไม่มีสิทธิ์</h3><p>ดูสลิปเงินเดือนของ <b>'+nm+'</b> ไม่ได้<br>สิทธิ์นี้สำหรับ MD และ HR Manager เท่านั้น</p></div>';
+    area.innerHTML='<div class="no-access"><i class="ti ti-lock" aria-hidden="true"></i><h3>ไม่มีสิทธิ์</h3><p>ดูสลิปของ <b>'+(emp.first_name||emp.name||'')+'</b> ไม่ได้</p></div>';
     return;
   }
-  const[m,y]=(document.getElementById(`${pre}-ps-month`)?.value||CUR_M+','+CUR_Y).split(',').map(Number);
-  const sal = emp.salary||0;
-  const sso = calcSSO(sal, emp.sso_eligible!==false);
-  const tax = calcTax(sal);
-  const net = sal - sso - tax;
-  area.innerHTML=`<div class="card" style="padding:0;overflow:hidden"><div class="ps-top"><div style="font-size:12px;opacity:.8">เงินสุทธิที่ได้รับ</div><div class="ps-net">฿${Math.round(net).toLocaleString('th-TH')}</div><div style="font-size:11px;opacity:.7;margin-top:4px">${MTH_F[m]} ${y} · ${emp.name} · ${emp.position||'—'}</div></div><div class="ps-body"><div class="ps-sec">รายได้</div><div class="ps-row"><span>เงินเดือนฐาน</span><span>฿${sal.toLocaleString('th-TH')}</span></div><div class="ps-sec">หักออก</div><div class="ps-row"><span>ประกันสังคม (5%)</span><span style="color:var(--red)">-฿${sso.toFixed(2)}</span></div><div class="ps-row"><span>ภาษีหัก ณ ที่จ่าย</span><span style="color:var(--red)">-฿${tax.toFixed(2)}</span></div><div class="ps-row ps-total"><span>เงินสุทธิ</span><span>฿${Math.round(net).toLocaleString('th-TH')}</span></div></div></div><button class="btn-fw" style="margin-top:10px" onclick="showToast('ดาวน์โหลด PDF')"><i class="ti ti-download" aria-hidden="true"></i>ดาวน์โหลด PDF</button>`;
-}
 
-// ============================================================
-// OFFICES
-// ============================================================
-function renderOfficesList(){
-  const el=document.getElementById('d-offices-list');if(!el)return;
-  el.innerHTML=offices.length?offices.map(o=>`
-    <div class="card" style="display:flex;align-items:center;gap:14px;margin-bottom:10px">
-      <div style="width:44px;height:44px;border-radius:12px;background:var(--green-l);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0">
-        <i class="ti ti-map-pin" style="color:var(--green)" aria-hidden="true"></i>
+  const [m,y] = (document.getElementById(`${pre}-ps-month`)?.value||CUR_M+','+CUR_Y).split(',').map(Number);
+  const startDate = `${y}-${String(m+1).padStart(2,'0')}-01`;
+  const endDate   = new Date(y,m+1,0).toISOString().slice(0,10);
+  const sal = emp.salary||0;
+
+  area.innerHTML = '<div style="text-align:center;padding:20px;color:#9CA3AF;font-size:12px"><i class="ti ti-loader-2" style="animation:spin 1s linear infinite;font-size:20px"></i><br>กำลังคำนวณ...</div>';
+
+  // ===== ดึง OT =====
+  const{data:otData} = await db.from('ot_records')
+    .select('ot_amount,ot_minutes,day_type,ot_rate')
+    .eq('employee_id', emp.id)
+    .eq('status','approved')
+    .gte('ot_date', startDate)
+    .lte('ot_date', endDate);
+  const otAmount = (otData||[]).reduce((s,o)=>s+(o.ot_amount||0),0);
+  const otMins   = (otData||[]).reduce((s,o)=>s+(o.ot_minutes||0),0);
+
+  // ===== ดึง Attendance — หักสาย =====
+  const{data:ws} = await db.from('work_settings')
+    .select('work_start,late_after_mins,late_deduct_per_min').limit(1);
+  const workStart     = ws?.[0]?.work_start||'08:00';
+  const lateAfterMins = ws?.[0]?.late_after_mins||0;
+  const lateRate      = ws?.[0]?.late_deduct_per_min||1;
+  const [wh,wm]       = workStart.split(':').map(Number);
+  const workStartMins = wh*60+wm+lateAfterMins;
+
+  const{data:attData} = await db.from('attendances')
+    .select('check_in')
+    .eq('employee_id', emp.id)
+    .gte('check_in', startDate+'T00:00:00')
+    .lte('check_in', endDate+'T23:59:59');
+
+  let lateMins=0;
+  (attData||[]).forEach(a=>{
+    const ci=new Date(a.check_in);
+    const ciM=ci.getHours()*60+ci.getMinutes();
+    lateMins+=Math.max(0,ciM-workStartMins);
+  });
+  const lateDeduct = Math.round(lateMins*lateRate);
+  const lateDays   = (attData||[]).filter(a=>{
+    const ci=new Date(a.check_in);
+    return ci.getHours()*60+ci.getMinutes()>workStartMins;
+  }).length;
+
+  // ===== เบี้ยขยัน — ตรวจครบ =====
+  const dilCheck = await checkDiligence(emp.id, m, y);
+  const dil = (emp.diligence_eligible!==false && lateMins===0 && dilCheck.eligible) ? 500 : 0;
+  const dilReason = !dilCheck.eligible ? dilCheck.reason : (lateMins>0 ? 'สาย '+lateMins+' นาที' : '');
+
+  // ===== SSO + ภาษี =====
+  const sso = calcSSO(sal, emp.sso_eligible!==false);
+  const tax = calcTax(sal, otAmount/12);
+  const net = sal + otAmount + dil - sso - tax - lateDeduct;
+
+  const fmt = n => '฿'+Math.round(n).toLocaleString('th-TH');
+
+  area.innerHTML = `
+  <div class="card" style="padding:0;overflow:hidden">
+    <div class="ps-top">
+      <div style="font-size:12px;opacity:.8">เงินสุทธิที่ได้รับ</div>
+      <div class="ps-net">${fmt(net)}</div>
+      <div style="font-size:11px;opacity:.7;margin-top:4px">
+        ${MTH_F[m]} ${y} · ${emp.first_name||emp.name||'—'} ${emp.last_name||''} · ${emp.position||'—'}
       </div>
-      <div style="flex:1;min-width:0">
-        <div style="font-size:15px;font-weight:600">${o.name}</div>
-        <div style="font-size:12px;color:#78909C;margin-top:2px">
-          ${o.address||'—'}<br>
-          Lat ${(o.lat||0).toFixed(5)} · Lng ${(o.lng||0).toFixed(5)} · รัศมี ${o.radius_m||200}ม.
+    </div>
+    <div class="ps-body">
+
+      <div class="ps-sec">รายได้</div>
+      <div class="ps-row"><span>เงินเดือนฐาน</span><span>${fmt(sal)}</span></div>
+      ${otAmount>0?`<div class="ps-row">
+        <span>OT (${Math.round(otMins/60*10)/10} ชม.)</span>
+        <span style="color:#065F46;font-weight:600">+${fmt(otAmount)}</span>
+      </div>`:''}
+      <div class="ps-row">
+        <span style="display:flex;align-items:center;gap:6px">เบี้ยขยัน
+          ${emp.diligence_eligible===false
+            ? '<span style="background:#F3F4F6;color:#6B7280;font-size:9px;font-weight:700;padding:1px 7px;border-radius:10px">ไม่มีสิทธิ์</span>'
+            : dil>0
+              ? '<span style="background:#D1FAE5;color:#065F46;font-size:9px;font-weight:700;padding:1px 7px;border-radius:10px">ได้รับ ✓</span>'
+              : '<span style="background:#FEE2E2;color:#991B1B;font-size:9px;font-weight:700;padding:1px 7px;border-radius:10px">ไม่ได้รับ ✗</span>'}
+        </span>
+        <div style="text-align:right">
+          <div style="color:${dil>0?'#065F46':'#9CA3AF'}">${dil>0?'+'+fmt(dil):'฿0'}</div>
+          ${dilReason&&dil===0?`<div style="font-size:9px;color:#9A3412">${dilReason}</div>`:''}
         </div>
       </div>
-      <div style="display:flex;gap:8px;flex-shrink:0">
-        <button class="btn-icon btn-edit" data-id="${o.id}" onclick="editOff(this.dataset.id)" title="แก้ไข">
-          <i class="ti ti-edit" aria-hidden="true"></i>
-        </button>
-        <button class="btn-icon btn-del" data-id="${o.id}" data-name="${o.name}" onclick="deleteOff(this.dataset.id,this.dataset.name)" title="ลบสาขา">
-          <i class="ti ti-trash" aria-hidden="true"></i>
-        </button>
+
+      <div class="ps-sec">หักออก</div>
+      ${lateDeduct>0?`<div class="ps-row">
+        <span style="color:#9A3412">หักสาย (${lateDays} วัน · ${lateMins} นาที)</span>
+        <span style="color:#9A3412;font-weight:600">-${fmt(lateDeduct)}</span>
+      </div>`:''}
+      <div class="ps-row">
+        <span>ประกันสังคม (5% เพดาน 17,500)</span>
+        <span style="color:var(--red)">-${fmt(sso)}</span>
       </div>
-    </div>`).join(''):'<div style="text-align:center;color:#B0BEC5;padding:40px;font-size:13px">ยังไม่มีสาขา</div>';
+      <div class="ps-row">
+        <span>ภาษีหัก ณ ที่จ่าย (ขั้นบันได)</span>
+        <span style="color:var(--red)">-${fmt(tax)}</span>
+      </div>
+      <div class="ps-row ps-total"><span>รับสุทธิ</span><span>${fmt(net)}</span></div>
+    </div>
+  </div>
+  <button class="btn-fw" style="margin-top:10px" onclick="showToast('ฟีเจอร์ PDF กำลังพัฒนา')">
+    <i class="ti ti-download" aria-hidden="true"></i>ดาวน์โหลด PDF
+  </button>`;
 }
+
 
 async function deleteOff(id, name){
   showConfirm({
@@ -3127,7 +3413,13 @@ async function loadAttendDashboard(){
     .lte('check_in', attendDate+'T23:59:59')
     .order('check_in');
 
-  attendRecords = attData || [];
+  // ถ้า employees join ไม่ได้ → ดึงจาก emps array แทน
+  attendRecords = (attData||[]).map(r => {
+    if(!r.employees && r.employee_id){
+      r.employees = emps.find(e => e.id === r.employee_id) || null;
+    }
+    return r;
+  });
 
   // ดึงเวลาเข้างาน จาก settings
   const{data: ws} = await db.from('work_settings').select('work_start,late_after_mins,late_deduct_per_min').limit(1);
@@ -3149,9 +3441,11 @@ function renderAttendDashboard(workStart, lateAfterMins, lateDeduct){
   const checkedInIds   = new Set();
 
   attendRecords.forEach(r => {
-    const e = r.employees || {};
-    if(!e.id) return;
-    checkedInIds.add(e.id);
+    // fallback ดึงจาก emps ถ้า join ไม่ได้
+    const e = r.employees || emps.find(emp => emp.id === r.employee_id) || {};
+    if(!e.id && !r.employee_id) return;
+    const empId = e.id || r.employee_id;
+    checkedInIds.add(empId);
 
     // คำนวณสาย
     const ci = new Date(r.check_in);
@@ -3176,8 +3470,8 @@ function renderAttendDashboard(workStart, lateAfterMins, lateDeduct){
   const isWeekend = [0,6].includes(new Date(attendDate).getDay());
   const absent = emps.filter(e =>
     !checkedInIds.has(e.id) &&
-    e.is_active &&
-    e.salary_type !== 'daily'  // รายวันไม่บังคับ
+    e.is_active !== false &&
+    e.salary_type !== 'daily'
   );
 
   // KPI
@@ -4953,6 +5247,22 @@ async function savePermissions(){
   </div>
 </div>
 
+
+<!-- ==================== LATE DETAIL POPUP ==================== -->
+<div class="late-popup-bg" id="late-popup" onclick="closeLatePopup(event)">
+  <div class="late-popup">
+    <div class="late-popup-hdr">
+      <div>
+        <div style="font-size:15px;font-weight:700" id="late-popup-name">—</div>
+        <div style="font-size:11px;color:#6B7280;margin-top:2px" id="late-popup-month">—</div>
+      </div>
+      <button onclick="closeLatePopup()" style="background:none;border:none;cursor:pointer;color:#9CA3AF;font-size:22px;line-height:1"><i class="ti ti-x"></i></button>
+    </div>
+    <div class="late-popup-body" id="late-popup-body">
+      <div style="text-align:center;color:#B0BEC5;padding:20px">กำลังโหลด...</div>
+    </div>
+  </div>
+</div>
 
 <!-- ==================== CONFIRM DIALOG ==================== -->
 
