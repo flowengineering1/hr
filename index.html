@@ -2497,7 +2497,8 @@ async function doCheckIn(pfx){
       document.getElementById('login-screen').style.display = 'flex';
       return;
     }
-    console.log('[CheckIn] employee_id:', currentUser.id, 'name:', currentUser.name);
+    // Debug toast — แสดง employee_id บนหน้าจอ
+    showToast('กำลังเช็คอิน: ' + (currentUser.name||'?') + ' [' + (currentUser.id||'NULL').slice(0,8) + ']');
 
     const off  = offices[offIdx];
     const dist = off ? Math.round(hvs(pos.coords.latitude,pos.coords.longitude,off.lat,off.lng)) : null;
