@@ -1,4 +1,4 @@
-const CACHE = 'hr-system-v1';
+const CACHE = 'hr-system-v3.96';
 const FILES = [
   '/hr/',
   '/hr/index.html',
@@ -22,9 +22,13 @@ self.addEventListener('activate', e => {
 });
 
 self.addEventListener('fetch', e => {
-  if (e.request.method !== 'GET') return;
-  if (e.request.url.includes('supabase.co')) return; // ไม่ cache API calls
   e.respondWith(
-    caches.match(e.request).then(r => r || fetch(e.request).catch(() => caches.match('/hr/index.html')))
+    caches.match(e.request).then(cached => {
+      // Network first สำหรับ HTML — ดึงใหม่เสมอ
+      if(e.request.url.includes('index.html') || e.request.mode === 'navigate'){
+        return fetch(e.request).catch(() => cached);
+      }
+      return cached || fetch(e.request);
+    })
   );
 });
