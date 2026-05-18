@@ -493,7 +493,7 @@ input[type=file]{display:none}
     </div>
   </div>
 
-  <div class="login-version">Flow HR v3.96 · © 2026 Flow Engineering and Service Co.,Ltd.</div>
+  <div class="login-version">Flow HR v3.99 · © 2026 Flow Engineering and Service Co.,Ltd.</div>
 </div>
 
 <!-- ============ DESKTOP ============ -->
@@ -2461,6 +2461,79 @@ function getMood(){const m=(TODAY.getHours()-8)*60+TODAY.getMinutes();return m<=
 // ============================================================
 // CHECK IN / CHECK OUT — 2 ปุ่มแยกกัน
 // ============================================================
+
+// ยกเลิก checkout กรณีกดผิด
+async function undoCheckout(pfx){
+  showConfirm({
+    icon: '↩️', iconBg:'#FEF3C7', iconColor:'#92400E',
+    title: 'ยกเลิก Checkout?',
+    msg: 'กด Checkout ผิดใช่ไหม?<br>ระบบจะลบเวลาออกให้ และกลับสู่สถานะกำลังทำงาน',
+    okText: 'ยืนยัน ยกเลิก Checkout', okColor:'#B45309',
+    onOk: async () => {
+      // หา attendance record ล่าสุดวันนี้
+      const td = todayS();
+      const{data} = await db.from('attendances')
+        .select('id,check_in')
+        .eq('employee_id', currentUser.id)
+        .gte('check_in', td+'T00:00:00')
+        .not('check_out', 'is', null)
+        .order('check_in', {ascending:false})
+        .limit(1);
+
+      if(!data||!data.length){ showToast('ไม่พบข้อมูล'); return; }
+
+      const{error} = await db.from('attendances')
+        .update({check_out: null})
+        .eq('id', data[0].id);
+
+      if(error){ showToast('เกิดข้อผิดพลาด: '+error.message); return; }
+
+      currentAttendId = data[0].id;
+      showToast('ยกเลิก Checkout สำเร็จ ✅');
+
+      // รีเซ็ต UI — กลับสู่สถานะ checkedin
+      setButtonState('checkedin');
+
+      // อัปเดต status bar
+      ['d','m'].forEach(p=>{
+        const sb = document.getElementById(`${p}-ci-status-bar`);
+        if(sb){
+          sb.style.background = '#F1F5F9';
+          sb.style.display = 'flex';
+          sb.innerHTML = `<div style="width:10px;height:10px;border-radius:50%;background:#22C55E;flex-shrink:0;box-shadow:0 0 0 3px rgba(34,197,94,.2)"></div>
+            <div style="flex:1;font-size:12px">
+              <span style="font-weight:600;color:#065F46">กำลังทำงาน</span>
+              <span style="color:#6B7280"> · เช็คอินเมื่อ </span>
+              <span id="${p}-ci-in-time" style="font-weight:600;color:#0F1923">${fmtT(data[0].check_in)}</span>
+            </div>
+            <div id="${p}-ci-timer" style="font-size:11px;color:#6B7280;font-family:monospace">0:00</div>`;
+        }
+        // reset ปุ่ม checkout onclick กลับมาเป็น doCheckOut
+        const btnOut = document.getElementById(`${p}-btn-checkout`);
+        if(btnOut){
+          btnOut.innerHTML = '<i class="ti ti-door-exit" style="font-size:24px" aria-hidden="true"></i>เช็คเอาท์';
+          btnOut.onclick = () => doCheckOut(p);
+        }
+      });
+
+      // เริ่ม timer ใหม่
+      if(workTimer) clearInterval(workTimer);
+      const ciTime = new Date(data[0].check_in);
+      workTimer = setInterval(()=>{
+        const diff = new Date()-ciTime;
+        const h=Math.floor(diff/3600000), m2=Math.floor((diff%3600000)/60000);
+        ['d','m'].forEach(p=>{
+          const el=document.getElementById(`${p}-ci-timer`);
+          if(el) el.textContent=h+':'+p2(m2);
+        });
+      }, 10000);
+
+      loadTeamAttend();
+    }
+  });
+}
+
+
 let currentAttendId = null; // id ของ attendance record ที่กำลัง active
 
 async function doCheckIn(pfx){
@@ -2497,8 +2570,7 @@ async function doCheckIn(pfx){
       document.getElementById('login-screen').style.display = 'flex';
       return;
     }
-    // Debug toast — แสดง employee_id บนหน้าจอ
-    showToast('กำลังเช็คอิน: ' + (currentUser.name||'?') + ' [' + (currentUser.id||'NULL').slice(0,8) + ']');
+
 
     const off  = offices[offIdx];
     const dist = off ? Math.round(hvs(pos.coords.latitude,pos.coords.longitude,off.lat,off.lng)) : null;
@@ -2621,11 +2693,14 @@ function setButtonState(state){
       btnIn.style.cssText  = 'padding:16px;border-radius:14px;border:none;cursor:not-allowed;font-family:inherit;font-size:14px;font-weight:700;display:flex;flex-direction:column;align-items:center;gap:6px;transition:all .2s;background:#DCFCE7;color:#15803D;width:100%';
       btnOut.disabled = false;
       btnOut.style.cssText = 'padding:16px;border-radius:14px;border:none;cursor:pointer;font-family:inherit;font-size:14px;font-weight:700;display:flex;flex-direction:column;align-items:center;gap:6px;transition:all .2s;background:#EF4444;color:#fff;box-shadow:0 4px 12px rgba(239,68,68,.3);width:100%';
-    } else { // done
+    } else { // done — เสร็จงานแล้ว แต่มีปุ่มแก้ไขกรณีกดผิด
       btnIn.disabled  = true;
       btnIn.style.cssText  = 'padding:16px;border-radius:14px;border:none;cursor:not-allowed;font-family:inherit;font-size:14px;font-weight:700;display:flex;flex-direction:column;align-items:center;gap:6px;background:#F3F4F6;color:#9CA3AF;width:100%';
-      btnOut.disabled = true;
-      btnOut.style.cssText = 'padding:16px;border-radius:14px;border:none;cursor:not-allowed;font-family:inherit;font-size:14px;font-weight:700;display:flex;flex-direction:column;align-items:center;gap:6px;background:#F3F4F6;color:#9CA3AF;width:100%';
+      btnOut.disabled  = false;
+      btnOut.textContent  = '';
+      btnOut.innerHTML    = '<i class="ti ti-rotate-clockwise" style="font-size:24px" aria-hidden="true"></i>กด checkout ผิด?';
+      btnOut.style.cssText = 'padding:16px;border-radius:14px;border:none;cursor:pointer;font-family:inherit;font-size:13px;font-weight:600;display:flex;flex-direction:column;align-items:center;gap:6px;background:#FEF3C7;color:#92400E;border:1px solid #FDE68A;width:100%';
+      btnOut.onclick = () => undoCheckout(p);
     }
   });
 }
