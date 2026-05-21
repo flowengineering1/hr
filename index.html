@@ -493,7 +493,7 @@ input[type=file]{display:none}
     </div>
   </div>
 
-  <div class="login-version">Flow HR v4.25 · © 2026 Flow Engineering and Service Co.,Ltd.</div>
+  <div class="login-version">Flow HR v4.26 · © 2026 Flow Engineering and Service Co.,Ltd.</div>
 </div>
 
 <!-- ============ DESKTOP ============ -->
@@ -3962,7 +3962,8 @@ let attendDate    = '';   // วันที่กำลังดู
 async function loadAttendDashboard(){
   // ตั้งค่าวันที่
   const picker = document.getElementById('att-date-pick');
-  if(!attendDate){
+  // ตั้ง default เป็นวันนี้เสมอถ้ายังไม่ได้เลือก
+  if(!attendDate || !picker?.value){
     attendDate = todayS();
     if(picker) picker.value = attendDate;
   } else {
@@ -4137,8 +4138,11 @@ function renderAttendDashboard(workStart, lateAfterMins, lateDeduct){
         : `<span class="badge b-green">ตรงเวลา</span>`;
       const noCoBadge = !r.check_out
         ? `<span class="badge b-red" style="margin-left:4px">ลืม scan ออก</span>` : '';
+      const ciDate = new Date(r.check_in);
+      const dateLabel = ciDate.toLocaleDateString('th-TH',{weekday:'short',day:'numeric',month:'short'});
       return `<tr>
         <td><div style="font-weight:500">${name}</div><div style="font-size:11px;color:#9CA3AF">${r.emp.department||'—'}</div></td>
+        <td style="white-space:nowrap;color:#374151">${dateLabel}</td>
         <td style="font-weight:600;color:${r.lateMin>0?'#9A3412':'#065F46'}">${r.ciTime}</td>
         <td style="color:${r.check_out?'#374151':'#9CA3AF'}">${r.coTime||'—'}</td>
         <td>${r.hours != null ? r.hours+' ชม.' : '—'}</td>
