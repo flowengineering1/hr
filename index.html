@@ -493,7 +493,7 @@ input[type=file]{display:none}
     </div>
   </div>
 
-  <div class="login-version">Flow HR v4.26 · © 2026 Flow Engineering and Service Co.,Ltd.</div>
+  <div class="login-version">Flow HR v4.27 · © 2026 Flow Engineering and Service Co.,Ltd.</div>
 </div>
 
 <!-- ============ DESKTOP ============ -->
@@ -4140,8 +4140,22 @@ function renderAttendDashboard(workStart, lateAfterMins, lateDeduct){
         ? `<span class="badge b-red" style="margin-left:4px">ลืม scan ออก</span>` : '';
       const ciDate = new Date(r.check_in);
       const dateLabel = ciDate.toLocaleDateString('th-TH',{weekday:'short',day:'numeric',month:'short'});
+      const e = r.emp;
+      const avBg  = DEPT_BG[e.department]||'#E3F2FD';
+      const avCol = DEPT_COL[e.department]||'#1565C0';
+      const avEl  = e.photo_url
+        ? `<img src="${e.photo_url}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`
+        : `<div class="ini" style="font-size:10px;font-weight:700;color:${avCol}">${ini(name)}</div>`;
       return `<tr>
-        <td><div style="font-weight:500">${name}</div><div style="font-size:11px;color:#9CA3AF">${r.emp.department||'—'}</div></td>
+        <td>
+          <div style="display:flex;align-items:center;gap:8px">
+            <div class="av" style="width:32px;height:32px;background:${avBg};flex-shrink:0">${avEl}</div>
+            <div>
+              <div style="font-weight:500;font-size:13px">${name}</div>
+              <div style="font-size:10px;color:#9CA3AF">${e.department||'—'}</div>
+            </div>
+          </div>
+        </td>
         <td style="white-space:nowrap;color:#374151">${dateLabel}</td>
         <td style="font-weight:600;color:${r.lateMin>0?'#9A3412':'#065F46'}">${r.ciTime}</td>
         <td style="color:${r.check_out?'#374151':'#9CA3AF'}">${r.coTime||'—'}</td>
