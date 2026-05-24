@@ -506,7 +506,7 @@ input[type=file]{display:none}
     </div>
   </div>
 
-  <div class="login-version">Flow HR v4.51 · © 2026 Flow Engineering and Service Co.,Ltd.</div>
+  <div class="login-version">Flow HR v4.52 · © 2026 Flow Engineering and Service Co.,Ltd.</div>
 </div>
 
 <!-- ============ DESKTOP ============ -->
@@ -579,6 +579,7 @@ input[type=file]{display:none}
       <div id="dp-dashboard" class="page show">
         <div id="d-hbd-banner"></div>
         <div id="d-leave-quota" style="margin-bottom:12px"></div>
+        <div id="d-leave-overview" style="margin-bottom:12px"></div>
         <div class="kpi-grid kpi-d" id="d-kpi"></div>
         <div class="g2">
           <div>
@@ -1527,7 +1528,15 @@ input[type=file]{display:none}
   <div class="sh">
     <div class="sh-handle"></div><div class="sh-title">ยื่นใบลา</div>
     <div class="f-group"><label class="f-lbl">ประเภทการลา</label>
-      <select class="f-inp f-sel" id="lf-type"><option value="annual">ลาพักร้อน</option><option value="sick">ลาป่วย</option><option value="personal">ลากิจ</option></select>
+      <select class="f-inp f-sel" id="lf-type" onchange="checkUnpaidLeave(this.value)">
+  <option value="annual">ลาพักร้อน</option>
+  <option value="sick">ลาป่วย</option>
+  <option value="personal">ลากิจ</option>
+  <option value="unpaid">ลาไม่รับค่าจ้าง</option>
+</select>
+<div id="lf-unpaid-note" style="display:none;margin-top:6px;background:#FEF3C7;border-radius:8px;padding:8px 12px;font-size:11px;color:#92400E">
+  ⚠️ การลาประเภทนี้จะถูกหักเงินเดือนตามจำนวนวันที่ลา
+</div>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
       <div class="f-group"><label class="f-lbl">วันเริ่มลา</label><input type="date" class="f-inp" id="lf-start"></div>
@@ -1575,7 +1584,7 @@ const DOW=['อา','จ','อ','พ','พฤ','ศ','ส'];
 const DEPT_BG={HR:'#F3E5F5',บัญชี:'#E8F5E9',IT:'#E3F2FD',การตลาด:'#FFF3E0',วิศวกรรม:'#E0F2F1',ปฏิบัติการ:'#FFEBEE',ช่างเทคนิค:'#ECEFF1'};
 const DEPT_COL={HR:'#7B1FA2',บัญชี:'#2E7D32',IT:'#1565C0',การตลาด:'#E65100',วิศวกรรม:'#00796B',ปฏิบัติการ:'#C62828',ช่างเทคนิค:'#455A64'};
 const DEPT_CLS={HR:'b-purple',บัญชี:'b-green',IT:'b-blue',การตลาด:'b-orange',วิศวกรรม:'b-teal',ปฏิบัติการ:'b-red',ช่างเทคนิค:'b-gray'};
-const LV_LABEL={annual:'พักร้อน',sick:'ลาป่วย',personal:'ลากิจ'};
+const LV_LABEL={annual:'ลาพักร้อน',sick:'ลาป่วย',personal:'ลากิจ',unpaid:'ลาไม่รับค่าจ้าง'};
 const MOODS={
   vip:{c:'mood-vip',e:'🏆',t:'VIP มาก่อนเวลามาก!',m:'คุณคือ MVP ของทีมวันนี้!',q:'"The early bird catches the worm."'},
   early:{c:'mood-early',e:'⭐',t:'มาก่อนเวลา!',m:'เริ่มต้นได้ยอดเยี่ยมมากเลย!',q:'ความสำเร็จมาจากการตื่นเช้า'},
@@ -2699,6 +2708,143 @@ function exportMonthlyAttendCSV(){
   showToast('Export CSV สำเร็จ ✅');
 }
 
+
+function checkUnpaidLeave(type){
+  const note = document.getElementById('lf-unpaid-note');
+  if(note) note.style.display = type === 'unpaid' ? 'block' : 'none';
+}
+
+// ============================================================
+// LEAVE OVERVIEW (Owner/HR Dashboard)
+// ============================================================
+async function renderLeaveOverview(){
+  const el = document.getElementById('d-leave-overview');
+  if(!el) return;
+  if(!can('leave_view_all') && !isDeptHead()) { el.innerHTML=''; return; }
+
+  const today = new Date();
+  const year  = today.getFullYear();
+  const startY = `${year}-01-01`;
+  const endY   = `${year}-12-31`;
+
+  const{data:ws} = await db.from('work_settings')
+    .select('annual_leave_days,annual_leave_after_months').limit(1);
+  const annualDays   = ws?.[0]?.annual_leave_days || 6;
+  const annualAfterM = ws?.[0]?.annual_leave_after_months || 12;
+
+  const{data:lvs} = await db.from('leaves')
+    .select('employee_id,type,days,status')
+    .in('status',['approved','pending'])
+    .gte('start_date',startY).lte('end_date',endY);
+
+  // กรองพนักงานตาม role
+  const viewEmps = isDeptHead() && !can('leave_view_all')
+    ? emps.filter(e=>e.department===myDept())
+    : emps.filter(e=>e.is_active!==false);
+
+  // คำนวณสิทธิ์แต่ละคน
+  const empLeave = viewEmps.map(e => {
+    const myLvs = (lvs||[]).filter(l=>l.employee_id===e.id);
+    const used  = {annual:0,sick:0,personal:0,unpaid:0};
+    const pend  = {annual:0,sick:0,personal:0,unpaid:0};
+    myLvs.forEach(l=>{
+      const d=l.days||1;
+      if(l.status==='approved') used[l.type]=(used[l.type]||0)+d;
+      if(l.status==='pending')  pend[l.type]=(pend[l.type]||0)+d;
+    });
+
+    // สิทธิ์พักร้อน
+    const startDate = e.start_date ? new Date(e.start_date) : null;
+    let annualEligible = false;
+    if(startDate){
+      const m=(today.getFullYear()-startDate.getFullYear())*12+(today.getMonth()-startDate.getMonth());
+      annualEligible = m >= annualAfterM;
+    }
+    const annualQuota = annualEligible ? annualDays : 0;
+
+    return {
+      e,
+      sick:    {rem:Math.max(0,30-used.sick),    used:used.sick,    pend:pend.sick},
+      personal:{rem:Math.max(0,3-used.personal),  used:used.personal,pend:pend.personal},
+      annual:  {rem:Math.max(0,annualQuota-used.annual), used:used.annual, pend:pend.annual, eligible:annualEligible, quota:annualQuota},
+      unpaid:  {used:used.unpaid, pend:pend.unpaid},
+    };
+  });
+
+  el.innerHTML = `
+  <div class="card" style="padding:0;overflow:hidden">
+    <div style="padding:12px 16px;border-bottom:.5px solid #F1F5F9;display:flex;align-items:center;justify-content:space-between">
+      <div class="card-hdr-l"><i class="ti ti-users-group" aria-hidden="true"></i>สรุปวันลาพนักงาน ${year}</div>
+      <div style="font-size:11px;color:#9CA3AF">${viewEmps.length} คน</div>
+    </div>
+    <div style="overflow-x:auto">
+      <table class="emp-table" style="min-width:600px">
+        <thead><tr>
+          <th style="min-width:140px">พนักงาน</th>
+          <th style="color:#EF4444;text-align:center">ลาป่วย<br><span style="font-size:9px;font-weight:400">เหลือ/30</span></th>
+          <th style="color:#F59E0B;text-align:center">ลากิจ<br><span style="font-size:9px;font-weight:400">เหลือ/3</span></th>
+          <th style="color:#10B981;text-align:center">พักร้อน<br><span style="font-size:9px;font-weight:400">เหลือ/สิทธิ์</span></th>
+          <th style="color:#6B7280;text-align:center">ไม่รับค่าจ้าง<br><span style="font-size:9px;font-weight:400">วันที่ใช้</span></th>
+        </tr></thead>
+        <tbody>
+          ${empLeave.map(r => {
+            const e = r.e;
+            const name = (e.first_name||e.name||'—')+(e.last_name?' '+e.last_name:'');
+            const avBg  = DEPT_BG[e.department]||'#E3F2FD';
+            const avCol = DEPT_COL[e.department]||'#1565C0';
+            const avEl  = e.photo_url
+              ? `<img src="${e.photo_url}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`
+              : `<div class="ini" style="font-size:10px;font-weight:700;color:${avCol}">${ini(name)}</div>`;
+
+            const sickBar  = Math.round(r.sick.rem/30*100);
+            const persBar  = Math.round(r.personal.rem/3*100);
+            const annuBar  = r.annual.quota>0 ? Math.round(r.annual.rem/r.annual.quota*100) : 0;
+
+            return `<tr>
+              <td>
+                <div style="display:flex;align-items:center;gap:8px">
+                  <div class="av" style="width:30px;height:30px;background:${avBg};flex-shrink:0">${avEl}</div>
+                  <div>
+                    <div style="font-weight:500;font-size:12px;white-space:nowrap">${name}</div>
+                    <div style="font-size:10px;color:#9CA3AF">${e.department||'—'}</div>
+                  </div>
+                </div>
+              </td>
+              <td style="text-align:center">
+                <div style="font-weight:700;color:${r.sick.rem<5?'#EF4444':'#065F46'}">${r.sick.rem}</div>
+                <div style="background:#F3F4F6;border-radius:3px;height:3px;margin-top:3px;overflow:hidden">
+                  <div style="width:${sickBar}%;height:100%;background:#EF4444;border-radius:3px"></div>
+                </div>
+                ${r.sick.pend>0?`<div style="font-size:9px;color:#F59E0B">+${r.sick.pend} รอ</div>`:''}
+              </td>
+              <td style="text-align:center">
+                <div style="font-weight:700;color:${r.personal.rem<1?'#EF4444':'#065F46'}">${r.personal.rem}</div>
+                <div style="background:#F3F4F6;border-radius:3px;height:3px;margin-top:3px;overflow:hidden">
+                  <div style="width:${persBar}%;height:100%;background:#F59E0B;border-radius:3px"></div>
+                </div>
+                ${r.personal.pend>0?`<div style="font-size:9px;color:#F59E0B">+${r.personal.pend} รอ</div>`:''}
+              </td>
+              <td style="text-align:center">
+                ${r.annual.eligible
+                  ? `<div style="font-weight:700;color:${r.annual.rem<1?'#EF4444':'#065F46'}">${r.annual.rem}/${r.annual.quota}</div>
+                     <div style="background:#F3F4F6;border-radius:3px;height:3px;margin-top:3px;overflow:hidden">
+                       <div style="width:${annuBar}%;height:100%;background:#10B981;border-radius:3px"></div>
+                     </div>
+                     ${r.annual.pend>0?`<div style="font-size:9px;color:#F59E0B">+${r.annual.pend} รอ</div>`:''}`
+                  : `<span style="font-size:10px;color:#9CA3AF">ยังไม่มีสิทธิ์</span>`}
+              </td>
+              <td style="text-align:center;color:${r.unpaid.used>0?'#EF4444':'#9CA3AF'};font-weight:${r.unpaid.used>0?'700':'400'}">
+                ${r.unpaid.used>0?r.unpaid.used+' วัน':'—'}
+                ${r.unpaid.pend>0?`<div style="font-size:9px;color:#F59E0B">+${r.unpaid.pend} รอ</div>`:''}
+              </td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>
+  </div>`;
+}
+
 // ============================================================
 // LEAVE QUOTA — วันหยุดคงเหลือ
 // ============================================================
@@ -2706,106 +2852,58 @@ async function renderLeaveQuota(){
   const el = document.getElementById('d-leave-quota');
   if(!el || !currentUser) return;
 
-  const today  = new Date();
-  const year   = today.getFullYear();
-  const month  = today.getMonth();
+  const today = new Date();
+  const year  = today.getFullYear();
   const startY = `${year}-01-01`;
   const endY   = `${year}-12-31`;
 
-  // ดึง settings สิทธิ์ลา
   const{data:ws} = await db.from('work_settings')
     .select('annual_leave_days,annual_leave_after_months').limit(1);
   const annualDays   = ws?.[0]?.annual_leave_days || 6;
   const annualAfterM = ws?.[0]?.annual_leave_after_months || 12;
 
-  // ดึง leaves ที่ approved ปีนี้ของตัวเอง
   const{data:lvs} = await db.from('leaves')
     .select('type,days,status')
     .eq('employee_id', currentUser.id)
-    .in('status', ['approved','pending'])
-    .gte('start_date', startY)
-    .lte('end_date', endY);
+    .in('status',['approved','pending'])
+    .gte('start_date', startY).lte('end_date', endY);
 
-  // นับวันลาแต่ละประเภท
-  const used = {annual:0, sick:0, personal:0};
-  const pend = {annual:0, sick:0, personal:0};
-  (lvs||[]).forEach(l => {
-    const d = l.days || 1;
-    if(l.status === 'approved') used[l.type] = (used[l.type]||0) + d;
-    if(l.status === 'pending')  pend[l.type] = (pend[l.type]||0) + d;
+  // นับวันลาแต่ละประเภท (approved + pending)
+  const used={annual:0,sick:0,personal:0,unpaid:0};
+  const pend={annual:0,sick:0,personal:0,unpaid:0};
+  (lvs||[]).forEach(l=>{
+    const d=l.days||1;
+    if(l.status==='approved') used[l.type]=(used[l.type]||0)+d;
+    if(l.status==='pending')  pend[l.type]=(pend[l.type]||0)+d;
   });
 
-  // คำนวณสิทธิ์ลาพักร้อน
+  // สิทธิ์ลาพักร้อน
   const emp = emps.find(e=>e.id===currentUser.id);
   const startDate = emp?.start_date ? new Date(emp.start_date) : null;
-  let annualEligible = false;
-  let daysToAnnual   = 0;
-  let annualEligibleDate = null;
-
+  let annualEligible=false, daysToAnnual=0, annualEligibleDate=null;
   if(startDate){
-    // คำนวณเดือนที่ทำงานแล้ว
-    const monthsWorked = (today.getFullYear()-startDate.getFullYear())*12
-                       + (today.getMonth()-startDate.getMonth());
+    const monthsWorked=(today.getFullYear()-startDate.getFullYear())*12+(today.getMonth()-startDate.getMonth());
     annualEligible = monthsWorked >= annualAfterM;
-
     if(!annualEligible){
-      // เหลืออีกกี่วัน
       annualEligibleDate = new Date(startDate);
-      annualEligibleDate.setMonth(annualEligibleDate.getMonth() + annualAfterM);
-      daysToAnnual = Math.ceil((annualEligibleDate - today) / 86400000);
+      annualEligibleDate.setMonth(annualEligibleDate.getMonth()+annualAfterM);
+      daysToAnnual = Math.ceil((annualEligibleDate-today)/86400000);
     }
   }
 
-  // สิทธิ์ลาแต่ละประเภทต่อปี (ตามกฎหมายแรงงาน)
-  const quota = {
-    sick:     30,  // ลาป่วยได้ 30 วัน/ปี
-    personal: 3,   // ลากิจ 3 วัน/ปี (กำหนดเอง)
-    annual:   annualEligible ? annualDays : 0,
-  };
-
+  const quota = {sick:30, personal:3, annual: annualEligible?annualDays:0, unpaid:999};
   const remaining = {
-    sick:     Math.max(0, quota.sick     - used.sick),
-    personal: Math.max(0, quota.personal - used.personal),
-    annual:   Math.max(0, quota.annual   - used.annual),
+    sick:    Math.max(0,quota.sick-used.sick),
+    personal:Math.max(0,quota.personal-used.personal),
+    annual:  Math.max(0,quota.annual-used.annual),
+    unpaid:  used.unpaid, // แสดงวันที่ใช้ไป
   };
 
   const cards = [
-    {
-      type: 'sick',
-      label: 'ลาป่วย',
-      icon: 'ti-stethoscope',
-      color: '#EF4444',
-      bg: '#FEE2E2',
-      quota: quota.sick,
-      used: used.sick,
-      pend: pend.sick,
-      rem: remaining.sick,
-    },
-    {
-      type: 'personal',
-      label: 'ลากิจ',
-      icon: 'ti-briefcase',
-      color: '#F59E0B',
-      bg: '#FEF3C7',
-      quota: quota.personal,
-      used: used.personal,
-      pend: pend.personal,
-      rem: remaining.personal,
-    },
-    {
-      type: 'annual',
-      label: 'ลาพักร้อน',
-      icon: 'ti-beach',
-      color: '#10B981',
-      bg: '#D1FAE5',
-      quota: quota.annual,
-      used: used.annual,
-      pend: pend.annual,
-      rem: remaining.annual,
-      notEligible: !annualEligible,
-      daysToAnnual,
-      eligibleDate: annualEligibleDate,
-    },
+    {type:'sick',    label:'ลาป่วย',             icon:'ti-stethoscope',  color:'#EF4444',bg:'#FEE2E2', quota:quota.sick,     used:used.sick,     pend:pend.sick,     rem:remaining.sick,    isUnpaid:false},
+    {type:'personal',label:'ลากิจ',              icon:'ti-briefcase',    color:'#F59E0B',bg:'#FEF3C7', quota:quota.personal, used:used.personal, pend:pend.personal, rem:remaining.personal,isUnpaid:false},
+    {type:'annual',  label:'ลาพักร้อน',           icon:'ti-beach',        color:'#10B981',bg:'#D1FAE5', quota:quota.annual,   used:used.annual,   pend:pend.annual,   rem:remaining.annual,  isUnpaid:false, notEligible:!annualEligible, daysToAnnual, eligibleDate:annualEligibleDate},
+    {type:'unpaid',  label:'ลาไม่รับค่าจ้าง',    icon:'ti-cash-off',     color:'#6B7280',bg:'#F3F4F6', quota:999,            used:used.unpaid,   pend:pend.unpaid,   rem:null,              isUnpaid:true},
   ];
 
   el.innerHTML = `
@@ -2813,37 +2911,45 @@ async function renderLeaveQuota(){
     <div class="card-hdr" style="margin-bottom:12px">
       <div class="card-hdr-l"><i class="ti ti-calendar-check" aria-hidden="true"></i>วันหยุดคงเหลือ ${year}</div>
     </div>
-    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px">
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px">
       ${cards.map(c => {
-        if(c.notEligible){
-          // ยังไม่มีสิทธิ์ลาพักร้อน
-          const dateStr = c.eligibleDate
-            ? c.eligibleDate.toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'2-digit'})
-            : '—';
-          return `<div style="background:${c.bg};border-radius:12px;padding:12px;text-align:center">
+        if(c.isUnpaid) return `
+          <div style="background:${c.bg};border-radius:12px;padding:12px;text-align:center">
+            <div style="width:36px;height:36px;background:rgba(255,255,255,.7);border-radius:10px;display:flex;align-items:center;justify-content:center;margin:0 auto 6px">
+              <i class="ti ${c.icon}" style="color:${c.color};font-size:18px" aria-hidden="true"></i>
+            </div>
+            <div style="font-size:12px;font-weight:700;color:#374151;margin-bottom:2px">${c.label}</div>
+            <div style="font-size:24px;font-weight:900;color:${c.color};line-height:1">${c.used}</div>
+            <div style="font-size:10px;color:#6B7280;margin-top:2px">วันที่ใช้ไป</div>
+            ${c.pend>0?`<div style="font-size:9px;color:#F59E0B;margin-top:3px">รออนุมัติ ${c.pend} วัน</div>`:''}
+          </div>`;
+
+        if(c.notEligible) return `
+          <div style="background:${c.bg};border-radius:12px;padding:12px;text-align:center">
             <div style="width:36px;height:36px;background:rgba(255,255,255,.7);border-radius:10px;display:flex;align-items:center;justify-content:center;margin:0 auto 8px">
               <i class="ti ${c.icon}" style="color:${c.color};font-size:18px" aria-hidden="true"></i>
             </div>
             <div style="font-size:12px;font-weight:700;color:#374151;margin-bottom:4px">${c.label}</div>
-            <div style="font-size:10px;color:#6B7280;line-height:1.5">
-              ได้สิทธิ์<br>${dateStr}<br>
+            <div style="font-size:10px;color:#6B7280;line-height:1.6">
+              ได้สิทธิ์<br>${c.eligibleDate?c.eligibleDate.toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'2-digit'}):'—'}<br>
               <span style="color:${c.color};font-weight:600">อีก ${c.daysToAnnual} วัน</span>
             </div>
           </div>`;
-        }
-        const pct = c.quota > 0 ? Math.round((c.rem/c.quota)*100) : 0;
-        return `<div style="background:${c.bg};border-radius:12px;padding:12px;text-align:center">
-          <div style="width:36px;height:36px;background:rgba(255,255,255,.7);border-radius:10px;display:flex;align-items:center;justify-content:center;margin:0 auto 6px">
-            <i class="ti ${c.icon}" style="color:${c.color};font-size:18px" aria-hidden="true"></i>
-          </div>
-          <div style="font-size:12px;font-weight:700;color:#374151;margin-bottom:2px">${c.label}</div>
-          <div style="font-size:24px;font-weight:900;color:${c.color};line-height:1">${c.rem}</div>
-          <div style="font-size:10px;color:#6B7280;margin-top:2px">เหลือ / ${c.quota} วัน</div>
-          ${c.pend>0?`<div style="font-size:9px;color:#F59E0B;margin-top:3px">รออนุมัติ ${c.pend} วัน</div>`:''}
-          <div style="background:rgba(255,255,255,.5);border-radius:4px;height:4px;margin-top:6px;overflow:hidden">
-            <div style="width:${pct}%;height:100%;background:${c.color};border-radius:4px;transition:width .5s"></div>
-          </div>
-        </div>`;
+
+        const pct = c.quota>0 ? Math.round(c.rem/c.quota*100) : 0;
+        return `
+          <div style="background:${c.bg};border-radius:12px;padding:12px;text-align:center">
+            <div style="width:36px;height:36px;background:rgba(255,255,255,.7);border-radius:10px;display:flex;align-items:center;justify-content:center;margin:0 auto 6px">
+              <i class="ti ${c.icon}" style="color:${c.color};font-size:18px" aria-hidden="true"></i>
+            </div>
+            <div style="font-size:12px;font-weight:700;color:#374151;margin-bottom:2px">${c.label}</div>
+            <div style="font-size:24px;font-weight:900;color:${c.color};line-height:1">${c.rem}</div>
+            <div style="font-size:10px;color:#6B7280;margin-top:2px">เหลือ / ${c.quota} วัน</div>
+            ${c.pend>0?`<div style="font-size:9px;color:#F59E0B;margin-top:3px">รออนุมัติ ${c.pend} วัน</div>`:''}
+            <div style="background:rgba(255,255,255,.5);border-radius:4px;height:4px;margin-top:6px;overflow:hidden">
+              <div style="width:${pct}%;height:100%;background:${c.color};border-radius:4px;transition:width .5s"></div>
+            </div>
+          </div>`;
       }).join('')}
     </div>
   </div>`;
@@ -2893,6 +2999,7 @@ function renderHBDBanner(){
 function renderAll(){
   renderKPI();
   renderHBDBanner();
+  if(can('leave_view_all') || isDeptHead()) renderLeaveOverview();
   renderLeaveQuota();
   renderBdayTabs();renderBdayList(bdayM,'d');renderBdayList(CUR_M,'m');
   renderBars('d-dept-bars',cntBy('department'));renderBars('d-tenure-bars',cntTenure());
@@ -4356,6 +4463,11 @@ async function calcPayroll(){
     });
     lateDeduct = Math.round(lateMins * lateRate);
 
+    // หัก unpaid leave
+    const myUnpaidLv = (lvData||[]).filter(l=>l.employee_id===e.id && l.type==='unpaid' && l.status==='approved');
+    const unpaidDays  = myUnpaidLv.reduce((s,l)=>s+(l.days||1),0);
+    const unpaidDeduct= Math.round((e.salary||0)/30 * unpaidDays);
+
     // เบี้ยขยัน — ตรวจครบ: มีสิทธิ์ + ไม่สาย + ไม่ขาด + ไม่ลืม checkout
     const dilCheck = await checkDiligence(e.id, m, y);
     const dil = (e.diligence_eligible!==false && lateMins===0 && dilCheck.eligible) ? dilBonus : 0;
@@ -4364,7 +4476,7 @@ async function calcPayroll(){
     // SSO + ภาษี (ตามกฎหมายไทย)
     const sso = calcSSO(sal, e.sso_eligible!==false);
     const tax = calcTax(sal, otAmount/12*12);  // OT ต่อเดือน
-    const net   = sal + otAmount + dil - sso - tax - lateDeduct;
+    const net   = sal + otAmount + dil - sso - tax - lateDeduct - unpaidDeduct;
 
     return { e, sal, otAmount, otMins, lateMins, lateDeduct, dil, sso, tax, net };
   }));
