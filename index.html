@@ -506,7 +506,7 @@ input[type=file]{display:none}
     </div>
   </div>
 
-  <div class="login-version">Flow HR v4.58 · © 2026 Flow Engineering and Service Co.,Ltd.</div>
+  <div class="login-version">Flow HR v4.59 · © 2026 Flow Engineering and Service Co.,Ltd.</div>
 </div>
 
 <!-- ============ DESKTOP ============ -->
@@ -2811,36 +2811,40 @@ let attendMode = 'daily';
 function setAttendMode(mode){
   attendMode = mode;
 
-  // toggle buttons
-  document.getElementById('att-mode-daily').style.cssText =
-    mode==='daily' ? 'font-size:12px;background:#0F1923;color:#fff;border-color:#0F1923;padding:7px 14px;border-radius:8px;border:1px solid;cursor:pointer;display:flex;align-items:center;gap:6px;font-family:inherit'
-                   : 'font-size:12px;background:#fff;color:#374151;border-color:#D1D5DB;padding:7px 14px;border-radius:8px;border:1px solid;cursor:pointer;display:flex;align-items:center;gap:6px;font-family:inherit';
-  document.getElementById('att-mode-person').style.cssText =
-    mode==='person' ? 'font-size:12px;background:#0F1923;color:#fff;border-color:#0F1923;padding:7px 14px;border-radius:8px;border:1px solid;cursor:pointer;display:flex;align-items:center;gap:6px;font-family:inherit'
-                    : 'font-size:12px;background:#fff;color:#374151;border-color:#D1D5DB;padding:7px 14px;border-radius:8px;border:1px solid;cursor:pointer;display:flex;align-items:center;gap:6px;font-family:inherit';
+  // toggle buttons style
+  const btnDaily  = document.getElementById('att-mode-daily');
+  const btnPerson = document.getElementById('att-mode-person');
+  const activeStyle  = 'font-size:12px;background:#0F1923;color:#fff;border-color:#0F1923;padding:7px 14px;border-radius:8px;border:1px solid;cursor:pointer;display:flex;align-items:center;gap:6px;font-family:inherit';
+  const normalStyle  = 'font-size:12px;background:#fff;color:#374151;border-color:#D1D5DB;padding:7px 14px;border-radius:8px;border:1px solid;cursor:pointer;display:flex;align-items:center;gap:6px;font-family:inherit';
+  if(btnDaily)  btnDaily.style.cssText  = mode==='daily'  ? activeStyle : normalStyle;
+  if(btnPerson) btnPerson.style.cssText = mode==='person' ? activeStyle : normalStyle;
 
-  document.getElementById('att-daily-controls').style.display  = mode==='daily'  ? 'flex' : 'none';
-  document.getElementById('att-person-controls').style.display = mode==='person' ? 'flex' : 'none';
+  // toggle controls
+  const dailyCtrl  = document.getElementById('att-daily-controls');
+  const personCtrl = document.getElementById('att-person-controls');
+  if(dailyCtrl)  dailyCtrl.style.display  = mode==='daily'  ? 'flex' : 'none';
+  if(personCtrl) personCtrl.style.display = mode==='person' ? 'flex' : 'none';
 
-  // KPI + sections
-  ['att-kpi','att-present-list','att-late-list','att-absent-list','att-no-checkout-list'].forEach(id=>{
-    const el=document.getElementById(id);
-    if(!el) return;
-    // หา parent card
-    let parent = el.parentElement;
-    while(parent && !parent.classList.contains('card') && parent !== document.body){
-      parent = parent.parentElement;
-    }
-    if(parent) parent.style.display = mode==='daily' ? '' : 'none';
-  });
-
+  // toggle sections — ซ่อน/แสดง daily sections และ person detail
+  const dailyIds = ['att-kpi','att-3cols','att-table-card'];
   const personDetail = document.getElementById('att-person-detail');
-  if(personDetail) personDetail.style.display = mode==='person' ? 'block' : 'none';
 
-  if(mode==='person'){
+  if(mode === 'person'){
+    // ซ่อน daily sections
+    dailyIds.forEach(id=>{
+      const el=document.getElementById(id);
+      if(el) el.style.display='none';
+    });
+    // แสดง 3-column card และ table แบบซ่อน แทนด้วย person detail
+    // ซ่อนทุก .card ใน dp-attendance ยกเว้น header
+    document.querySelectorAll('#dp-attendance > .card, #dp-attendance > div > .card').forEach(el=>{
+      if(!el.closest('#att-person-detail')) el.style.display='none';
+    });
+    if(personDetail) personDetail.style.display='block';
+
     // โหลด employee dropdown
     const sel = document.getElementById('att-emp-sel');
-    if(sel && sel.options.length <= 1){
+    if(sel && sel.options.length<=1){
       emps.filter(e=>e.is_active!==false).forEach(e=>{
         const o=document.createElement('option');
         o.value=e.id;
@@ -2848,16 +2852,24 @@ function setAttendMode(mode){
         sel.appendChild(o);
       });
     }
-    // set default date range (เดือนนี้)
-    const startPick = document.getElementById('att-start-pick');
-    const endPick   = document.getElementById('att-end-pick');
-    if(startPick && !startPick.value){
-      const now = new Date();
-      startPick.value = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-01`;
-      endPick.value   = now.toISOString().slice(0,10);
+    // set default date range
+    const startPick=document.getElementById('att-start-pick');
+    const endPick=document.getElementById('att-end-pick');
+    if(startPick&&!startPick.value){
+      const now=new Date();
+      startPick.value=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-01`;
+      endPick.value=now.toISOString().slice(0,10);
     }
-    const lbl = document.getElementById('att-date-label');
-    if(lbl) lbl.textContent = 'ดูรายคน';
+    const lbl=document.getElementById('att-date-label');
+    if(lbl) lbl.textContent='ดูรายคน';
+
+  } else {
+    // แสดง daily sections กลับมา
+    document.querySelectorAll('#dp-attendance > .card, #dp-attendance > div > .card').forEach(el=>{
+      if(!el.closest('#att-person-detail')) el.style.display='';
+    });
+    if(personDetail) personDetail.style.display='none';
+    loadAttendDashboard();
   }
 }
 
