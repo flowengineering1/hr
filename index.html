@@ -506,7 +506,7 @@ input[type=file]{display:none}
     </div>
   </div>
 
-  <div class="login-version">Flow HR v4.50 · © 2026 Flow Engineering and Service Co.,Ltd.</div>
+  <div class="login-version">Flow HR v4.51 · © 2026 Flow Engineering and Service Co.,Ltd.</div>
 </div>
 
 <!-- ============ DESKTOP ============ -->
@@ -6201,7 +6201,7 @@ function otRowHTML(o, showApprove=false){
   </div>`;
 }
 
-function renderOT(){
+async function renderOT(){
   const pend  = otRequests.filter(o=>o.status==='pending');
   const approv= otRequests.filter(o=>o.status==='approved');
 
@@ -6215,13 +6215,48 @@ function renderOT(){
     ? approv.slice(0,5).map(o=>otRowHTML(o)).join('')
     : '<div style="text-align:center;color:#B0BEC5;padding:16px;font-size:12px">ไม่มีรายการ</div>';
 
-  // สรุปเดือนนี้
+  // สรุปเดือนนี้ — ตรวจ attendance จริงก่อนนับ
+  const startM = `${CUR_Y}-${String(CUR_M+1).padStart(2,'0')}-01`;
+  const endM   = new Date(CUR_Y,CUR_M+1,0).toISOString().slice(0,10);
+
+  // ดึง attendance เดือนนี้ของ current user
+  const{data:myAttM} = await db.from('attendances')
+    .select('check_in,check_out')
+    .eq('employee_id', currentUser.id)
+    .gte('check_in', startM+'T00:00:00')
+    .lte('check_in', endM+'T23:59:59');
+
   const thisMonth = otRequests.filter(o=>{
     const d = new Date(o.ot_date);
     return d.getMonth()===CUR_M && d.getFullYear()===CUR_Y && o.status==='approved';
   });
-  const totalMins = thisMonth.reduce((s,o)=>s+(o.ot_minutes||0),0);
-  const totalAmt  = thisMonth.reduce((s,o)=>s+(o.ot_amount||0),0);
+
+  // คำนวณ OT จริงจาก attendance
+  const{data:wsM} = await db.from('work_settings').select('work_end').limit(1);
+  const workEnd = wsM?.[0]?.work_end || '17:30';
+  const [weh,wem] = workEnd.split(':').map(Number);
+
+  let totalMins = 0, totalAmt = 0;
+  thisMonth.forEach(ot => {
+    const otDate = ot.ot_date;
+    const attOnDay = (myAttM||[]).filter(a=>a.check_in.startsWith(otDate));
+    if(!attOnDay.length || !attOnDay[0].check_out) return; // ไม่มา / ลืม checkout → ไม่นับ
+
+    const coTime = new Date(attOnDay[0].check_out);
+    const workEndTime = new Date(attOnDay[0].check_in);
+    workEndTime.setHours(weh, wem, 0, 0);
+
+    const actualOTMins = Math.max(0, Math.round((coTime - workEndTime) / 60000));
+    const approvedMins = ot.ot_minutes || 0;
+    const earnedMins   = Math.min(actualOTMins, approvedMins);
+    if(earnedMins <= 0) return;
+
+    const hourlyRate = (currentUser.salary||0) / 30 / 8;
+    const earnedAmt  = Math.round((earnedMins/60) * hourlyRate * (ot.ot_rate||1.5));
+
+    totalMins += earnedMins;
+    totalAmt  += earnedAmt;
+  });
   const sumEl = document.getElementById('d-ot-summary');
   if(sumEl) sumEl.innerHTML = `
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
