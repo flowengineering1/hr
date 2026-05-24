@@ -506,7 +506,7 @@ input[type=file]{display:none}
     </div>
   </div>
 
-  <div class="login-version">Flow HR v4.64 · © 2026 Flow Engineering and Service Co.,Ltd.</div>
+  <div class="login-version">Flow HR v4.66 · © 2026 Flow Engineering and Service Co.,Ltd.</div>
 </div>
 
 <!-- ============ DESKTOP ============ -->
@@ -532,6 +532,12 @@ input[type=file]{display:none}
       <div class="nav-item" onclick="goD('ot-report')"><i class="ti ti-clock-bolt" aria-hidden="true"></i>รายงาน OT</div>
       <div class="nav-item" onclick="goD('leave')"><i class="ti ti-beach" aria-hidden="true"></i>การลา<span class="nav-badge" id="d-leave-badge" style="display:none">0</span></div>
       <div class="nav-item" onclick="goD('ot')"><i class="ti ti-clock-bolt" aria-hidden="true"></i>OT<span class="nav-badge" id="d-ot-badge" style="display:none">0</span></div>
+      <div class="nav-grp">รายงาน</div>
+      <div class="nav-item" onclick="goD('attendance')"><i class="ti ti-calendar-stats" aria-hidden="true"></i>เข้างานรายวัน</div>
+      <div class="nav-item" onclick="goD('monthly-attend')"><i class="ti ti-table" aria-hidden="true"></i>สรุปเข้างานรายเดือน</div>
+      <div class="nav-item" onclick="goD('leave-report')"><i class="ti ti-calendar-check" aria-hidden="true"></i>รายงานการลา</div>
+      <div class="nav-item" onclick="goD('ot-report')"><i class="ti ti-clock-bolt" aria-hidden="true"></i>รายงาน OT</div>
+
       <div class="nav-grp">การเงิน</div>
       <div class="nav-item" onclick="goD('payroll')"><i class="ti ti-cash" aria-hidden="true"></i>เงินเดือน</div>
       <div class="nav-item" onclick="goD('payslip')"><i class="ti ti-receipt" aria-hidden="true"></i>สลิปเงินเดือน</div>
@@ -5296,13 +5302,11 @@ async function renderPS(pfx,aId){
     .eq('status','approved')
     .gte('ot_date', startDate)
     .lte('ot_date', endDate);
-  const otAmount = (otData||[]).reduce((s,o)=>s+(o.ot_amount||0),0);
-  const otMins   = (otData||[]).reduce((s,o)=>s+(o.ot_minutes||0),0);
-
-  // ===== ดึง Attendance — หักสาย =====
+  // ===== ดึง Attendance + work_settings พร้อมกัน =====
   const{data:ws} = await db.from('work_settings')
-    .select('work_start,late_after_mins,late_deduct_per_min').limit(1);
-  const workStart     = ws?.[0]?.work_start||'08:00';
+    .select('work_start,work_end,late_after_mins,late_deduct_per_min').limit(1);
+  const workStart     = ws?.[0]?.work_start||'08:30';
+  const workEnd       = ws?.[0]?.work_end||'17:30';
   const lateAfterMins = ws?.[0]?.late_after_mins||0;
   const lateRate      = ws?.[0]?.late_deduct_per_min||1;
   const [wh,wm]       = workStart.split(':').map(Number);
