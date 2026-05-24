@@ -506,7 +506,7 @@ input[type=file]{display:none}
     </div>
   </div>
 
-  <div class="login-version">Flow HR v4.63 · © 2026 Flow Engineering and Service Co.,Ltd.</div>
+  <div class="login-version">Flow HR v4.64 · © 2026 Flow Engineering and Service Co.,Ltd.</div>
 </div>
 
 <!-- ============ DESKTOP ============ -->
@@ -2387,12 +2387,60 @@ async function loadOTReport(){
   const lbl = document.getElementById('otr-period-label');
   if(lbl) lbl.textContent = isAll?`ทั้งปี ${y}`:`${MTH_F[m]} ${y}`;
 
-  const{data} = await db.from('ot_records')
-    .select('*, employees!ot_records_employee_id_fkey(id,name,first_name,last_name,department,photo_url,salary)')
-    .gte('ot_date',startDate).lte('ot_date',endDate)
-    .order('ot_date',{ascending:false});
+  const[{data},{data:attData},{data:wsData}] = await Promise.all([
+    db.from('ot_records')
+      .select('*, employees!ot_records_employee_id_fkey(id,name,first_name,last_name,department,photo_url,salary)')
+      .gte('ot_date',startDate).lte('ot_date',endDate)
+      .order('ot_date',{ascending:false}),
+    db.from('attendances')
+      .select('employee_id,check_in,check_out')
+      .gte('check_in',startDate+'T00:00:00')
+      .lte('check_in',endDate+'T23:59:59')
+      .not('employee_id','is',null),
+    db.from('work_settings').select('work_end').limit(1)
+  ]);
 
-  otrData = data||[];
+  const workEnd = wsData?.[0]?.work_end || '17:30';
+  const [weh,wem] = workEnd.split(':').map(Number);
+  const workEndMins = weh*60+wem;
+
+  // เพิ่ม attendance data และคำนวณ OT จริงเข้าไปใน ot records
+  otrData = (data||[]).map(o => {
+    const attOnDay = (attData||[]).filter(a =>
+      a.employee_id === o.employee_id &&
+      a.check_in.startsWith(o.ot_date)
+    );
+    const att = attOnDay[0] || null;
+
+    let actualOTMins = 0, actualOTAmt = 0, hasAttend = false, hasMissed = false;
+
+    if(!att){
+      hasMissed = true; // ไม่มา
+    } else if(!att.check_out){
+      hasMissed = true; // ลืม checkout
+    } else {
+      hasAttend = true;
+      const coTime = new Date(att.check_out);
+      const workEndTime = new Date(att.check_in);
+      workEndTime.setHours(weh, wem, 0, 0);
+      actualOTMins = Math.max(0, Math.round((coTime - workEndTime) / 60000));
+      const approvedMins = o.ot_minutes || 0;
+      const earnedMins   = Math.min(actualOTMins, approvedMins);
+      const hourlyRate   = (o.employees?.salary||0) / 30 / 8;
+      actualOTAmt = Math.round((earnedMins/60) * hourlyRate * (o.ot_rate||1.5));
+    }
+
+    return {
+      ...o,
+      att,
+      hasAttend, hasMissed,
+      actualOTMins: Math.min(actualOTMins, o.ot_minutes||0),
+      actualOTAmt,
+      ciTime: att ? new Date(att.check_in).toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'}) : null,
+      coTime: att?.check_out ? new Date(att.check_out).toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'}) : null,
+    };
+  });
+
   renderOTReport();
 }
 
@@ -2407,8 +2455,8 @@ function renderOTReport(){
       const emp = emps.find(e=>e.id===empFilter)||{};
       const name=(emp.first_name||emp.name||'—')+(emp.last_name?' '+emp.last_name:'');
       const approved=filtered.filter(o=>o.status==='approved');
-      const totalMins=approved.reduce((s,o)=>s+(o.ot_minutes||0),0);
-      const totalAmt =approved.reduce((s,o)=>s+(o.ot_amount||0),0);
+      const totalMins=approved.reduce((s,o)=>s+(o.hasMissed?0:o.actualOTMins!=null?o.actualOTMins:(o.ot_minutes||0)),0);
+      const totalAmt =approved.reduce((s,o)=>s+(o.hasMissed?0:o.actualOTAmt!=null?o.actualOTAmt:(o.ot_amount||0)),0);
       const pendCount=filtered.filter(o=>o.status==='pending').length;
 
       summaryEl.innerHTML=`
@@ -2440,15 +2488,17 @@ function renderOTReport(){
   // KPI
   const approved = filtered.filter(o=>o.status==='approved');
   const pending  = filtered.filter(o=>o.status==='pending');
-  const totalMins= approved.reduce((s,o)=>s+(o.ot_minutes||0),0);
-  const totalAmt = approved.reduce((s,o)=>s+(o.ot_amount||0),0);
+  const noShow   = approved.filter(o=>o.hasMissed);
+  // ใช้ actualOTMins/actualOTAmt ถ้ามี (คำนวณจาก attendance จริง) มิฉะนั้น fallback ot_amount
+  const totalMins= approved.reduce((s,o)=>s+(o.actualOTMins!=null?o.actualOTMins:(o.ot_minutes||0)),0);
+  const totalAmt = approved.reduce((s,o)=>s+(o.hasMissed?0:o.actualOTAmt!=null?o.actualOTAmt:(o.ot_amount||0)),0);
 
   const kpiEl=document.getElementById('otr-kpi');
   if(kpiEl) kpiEl.innerHTML=[
-    {n:filtered.length,                                   l:'รายการ OT ทั้งหมด', ic:'ti-list',        bg:'#DBEAFE',col:'#1D4ED8'},
     {n:approved.length,                                   l:'อนุมัติแล้ว',       ic:'ti-check',       bg:'#D1FAE5',col:'#065F46'},
-    {n:Math.round(totalMins/60*10)/10+' ชม.',             l:'ชั่วโมง OT รวม',   ic:'ti-clock-bolt',  bg:'#FEF3C7',col:'#92400E'},
-    {n:'฿'+Math.round(totalAmt).toLocaleString('th-TH'), l:'เงิน OT รวม',       ic:'ti-cash',        bg:'#EDE9FE',col:'#4C1D95'},
+    {n:Math.round(totalMins/60*10)/10+' ชม.',             l:'ชม. OT จริง',      ic:'ti-clock-bolt',  bg:'#FEF3C7',col:'#92400E'},
+    {n:'฿'+Math.round(totalAmt).toLocaleString('th-TH'), l:'เงิน OT จ่ายจริง', ic:'ti-cash',        bg:'#EDE9FE',col:'#4C1D95'},
+    {n:noShow.length,                                     l:'ไม่มาทำ OT',        ic:'ti-user-off',    bg:'#FEE2E2',col:'#991B1B'},
   ].map(k=>`<div class="kpi-tile">
     <div class="kpi-ico" style="background:${k.bg};width:42px;height:42px"><i class="ti ${k.ic}" style="color:${k.col}" aria-hidden="true"></i></div>
     <div><div class="kpi-num" style="font-size:18px">${k.n}</div><div class="kpi-lbl">${k.l}</div></div>
@@ -2477,10 +2527,20 @@ function renderOTReport(){
       ? `<img src="${e.photo_url}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`
       : `<div class="ini" style="font-size:10px;font-weight:700;color:${avCol}">${ini(name)}</div>`;
 
-    const hrs=Math.round((o.ot_minutes||0)/60*10)/10;
-    const timeLabel=o.start_time&&o.end_time?`${o.start_time.slice(0,5)} – ${o.end_time.slice(0,5)}`:'—';
+    const approvedMins = o.ot_minutes||0;
+    const actualMins   = o.actualOTMins!=null ? o.actualOTMins : approvedMins;
+    const actualAmt    = o.hasMissed ? 0 : (o.actualOTAmt!=null ? o.actualOTAmt : (o.ot_amount||0));
+    const timeLabel    = o.start_time&&o.end_time?`${o.start_time.slice(0,5)}–${o.end_time.slice(0,5)}`:'—';
 
-    return `<tr>
+    // attendance status
+    let attBadge = '';
+    if(o.status==='approved'){
+      if(o.hasMissed && !o.att)         attBadge = '<span class="badge b-red">ไม่มาทำงาน</span>';
+      else if(o.hasMissed && !o.coTime) attBadge = '<span class="badge b-orange">ลืม checkout</span>';
+      else if(o.hasAttend)              attBadge = `<span style="font-size:10px;color:#065F46">${o.ciTime}→${o.coTime}</span>`;
+    }
+
+    return `<tr style="${o.hasMissed&&o.status==='approved'?'background:#FFF7F7':''}">
       <td>
         <div style="display:flex;align-items:center;gap:8px">
           <div class="av" style="width:30px;height:30px;background:${avBg};flex-shrink:0">${avEl}</div>
@@ -2491,14 +2551,22 @@ function renderOTReport(){
         </div>
       </td>
       <td style="white-space:nowrap;font-size:12px">${o.ot_date||'—'}</td>
-      <td style="font-size:12px;white-space:nowrap">${timeLabel}</td>
-      <td style="text-align:center;font-weight:600;color:#92400E">${hrs} ชม.</td>
+      <td style="font-size:11px;white-space:nowrap">
+        <div>${timeLabel}</div>
+        <div style="margin-top:2px">${attBadge}</div>
+      </td>
+      <td style="text-align:center">
+        <div style="font-weight:600;color:#92400E">${Math.round(actualMins/60*10)/10} ชม.</div>
+        ${actualMins<approvedMins?`<div style="font-size:9px;color:#9CA3AF;text-decoration:line-through">${Math.round(approvedMins/60*10)/10} ชม.</div>`:''}
+      </td>
       <td style="font-size:11px;white-space:nowrap">${OT_TYPE[o.day_type]||o.day_type||'—'}</td>
       <td style="text-align:center">×${o.ot_rate||1.5}</td>
-      <td style="font-weight:700;color:${o.status==='approved'?'#065F46':'#9CA3AF'}">
-        ${o.status==='approved'?'฿'+Math.round(o.ot_amount||0).toLocaleString('th-TH'):'—'}
+      <td style="font-weight:700;color:${o.hasMissed?'#EF4444':o.status==='approved'?'#065F46':'#9CA3AF'}">
+        ${o.status==='approved'
+          ? (o.hasMissed ? '<span style="font-size:11px">฿0 (ไม่มาทำ)</span>' : '฿'+Math.round(actualAmt).toLocaleString('th-TH'))
+          : '—'}
       </td>
-      <td style="font-size:11px;color:#6B7280;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${o.note||'—'}</td>
+      <td style="font-size:11px;color:#6B7280;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${o.note||'—'}</td>
       <td>${STATUS_BADGE[o.status]||o.status}</td>
     </tr>`;
   });
