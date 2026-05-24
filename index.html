@@ -506,7 +506,7 @@ input[type=file]{display:none}
     </div>
   </div>
 
-  <div class="login-version">Flow HR v4.59 · © 2026 Flow Engineering and Service Co.,Ltd.</div>
+  <div class="login-version">Flow HR v4.60 · © 2026 Flow Engineering and Service Co.,Ltd.</div>
 </div>
 
 <!-- ============ DESKTOP ============ -->
@@ -874,13 +874,17 @@ input[type=file]{display:none}
           <div style="flex:1;font-size:13px;color:#6B7280">
             สรุปการเข้างาน <b id="mat-month-label" style="color:#0F1923"></b>
           </div>
-          <select class="f-inp f-sel" id="mat-month-sel" style="width:160px" onchange="loadMonthlyAttend()"></select>
+          <select class="f-inp f-sel" id="mat-emp-sel" style="width:180px" onchange="renderMonthlyAttend()">
+            <option value="all">👥 พนักงานทั้งหมด</option>
+          </select>
+          <select class="f-inp f-sel" id="mat-month-sel" style="width:155px" onchange="loadMonthlyAttend()"></select>
           <button class="btn-o" onclick="exportMonthlyAttendCSV()" style="padding:8px 14px;font-size:12px">
             <i class="ti ti-download" aria-hidden="true"></i>Export CSV
           </button>
         </div>
 
         <!-- Summary KPI -->
+        <div id="mat-emp-summary"></div>
         <div class="kpi-grid" id="mat-kpi" style="grid-template-columns:repeat(4,1fr);margin-bottom:14px"></div>
 
         <!-- Table -->
@@ -2608,6 +2612,16 @@ function initMonthlyAttend(){
       sel.appendChild(o);
     }
   }
+  // init employee dropdown
+  const eSel = document.getElementById('mat-emp-sel');
+  if(eSel && eSel.options.length <= 1){
+    emps.filter(e=>e.is_active!==false).forEach(e=>{
+      const o = document.createElement('option');
+      o.value = e.id;
+      o.textContent = (e.first_name||e.name||'')+(e.last_name?' '+e.last_name:'');
+      eSel.appendChild(o);
+    });
+  }
   loadMonthlyAttend();
 }
 
@@ -2719,6 +2733,50 @@ async function loadMonthlyAttend(){
 }
 
 function renderMonthlyAttend(){
+  const empFilter = document.getElementById('mat-emp-sel')?.value || 'all';
+  const filtered  = empFilter === 'all' ? matData : matData.filter(r=>r.e.id===empFilter);
+
+  // Employee summary card
+  const summaryEl = document.getElementById('mat-emp-summary');
+  if(summaryEl){
+    if(empFilter !== 'all'){
+      const r = filtered[0];
+      if(r){
+        const e = r.e;
+        const name = (e.first_name||e.name||'—')+(e.last_name?' '+e.last_name:'');
+        const [m,y] = (document.getElementById('mat-month-sel')?.value||CUR_M+','+CUR_Y).split(',').map(Number);
+        summaryEl.innerHTML = `
+          <div class="card" style="background:linear-gradient(135deg,#0F1923,#1252A3);color:#fff;margin-bottom:12px">
+            <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">
+              ${e.photo_url?`<img src="${e.photo_url}" style="width:48px;height:48px;border-radius:50%;object-fit:cover;border:2px solid rgba(255,255,255,.3)">`:`<div style="width:48px;height:48px;border-radius:50%;background:rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700">${ini(name)}</div>`}
+              <div>
+                <div style="font-size:15px;font-weight:700">${name.trim()}</div>
+                <div style="font-size:12px;opacity:.75">${e.department||'—'} · ${MTH_F[m]} ${y}</div>
+              </div>
+            </div>
+            <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;text-align:center">
+              ${[
+                {l:'วันทำงาน', v:r.totalWorkDays,  c:'#93C5FD'},
+                {l:'วันมา',    v:r.presentDays,     c:'#6EE7B7'},
+                {l:'วันสาย',   v:r.lateDays,        c:r.lateDays>0?'#FCA5A5':'#6EE7B7'},
+                {l:'วันขาด',   v:r.absentDays,      c:r.absentDays>0?'#FCA5A5':'#6EE7B7'},
+                {l:'วันลา',    v:r.totalLeaveDays,  c:'#FCD34D'},
+              ].map(t=>`<div style="background:rgba(255,255,255,.15);border-radius:10px;padding:10px">
+                <div style="font-size:20px;font-weight:700;color:${t.c}">${t.v}</div>
+                <div style="font-size:10px;opacity:.8;margin-top:2px">${t.l}</div>
+              </div>`).join('')}
+            </div>
+            ${r.lateDeduct>0?`<div style="margin-top:10px;background:rgba(239,68,68,.2);border-radius:8px;padding:8px 12px;font-size:12px">
+              ⚠️ หักสาย <b>${r.lateMins} นาที</b> = <b style="color:#FCA5A5">-฿${r.lateDeduct.toLocaleString('th-TH')}</b>
+              ${r.dilEligible?'':'&nbsp;·&nbsp;ไม่ได้รับเบี้ยขยัน'}
+            </div>`:''}
+          </div>`;
+      }
+    } else {
+      summaryEl.innerHTML = '';
+    }
+  }
+
   // KPI
   const kpiEl = document.getElementById('mat-kpi');
   if(kpiEl){
@@ -2740,7 +2798,7 @@ function renderMonthlyAttend(){
   // Table
   const tbody = document.getElementById('mat-tbody');
   if(!tbody) return;
-  tbody.innerHTML = matData.map(r => {
+  const matRows = filtered.map(r => {
     const e = r.e;
     const name = (e.first_name||e.name||'—')+' '+(e.last_name||'');
     return `<tr style="${r.absentDays>0?'background:#FFF7F7':''}">
@@ -2772,6 +2830,7 @@ function renderMonthlyAttend(){
       </td>
     </tr>`;
   }).join('');
+  tbody.innerHTML = filtered.length ? matRows : '<tr><td colspan="10" style="text-align:center;color:#B0BEC5;padding:24px">ไม่มีข้อมูล</td></tr>';
 }
 
 function exportMonthlyAttendCSV(){
