@@ -506,7 +506,7 @@ input[type=file]{display:none}
     </div>
   </div>
 
-  <div class="login-version">Flow HR v4.57 · © 2026 Flow Engineering and Service Co.,Ltd.</div>
+  <div class="login-version">Flow HR v4.58 · © 2026 Flow Engineering and Service Co.,Ltd.</div>
 </div>
 
 <!-- ============ DESKTOP ============ -->
@@ -911,7 +911,7 @@ input[type=file]{display:none}
           <div style="flex:1;font-size:13px;color:#6B7280">
             รายงานการลา <b id="lr-period-label" style="color:#0F1923"></b>
           </div>
-          <select class="f-inp f-sel" id="lr-emp-sel" style="width:180px" onchange="renderLeaveReport()">
+          <select class="f-inp f-sel" id="lr-emp-sel" style="width:180px" onchange="loadLeaveReport()">
             <option value="all">👥 พนักงานทั้งหมด</option>
           </select>
           <select class="f-inp f-sel" id="lr-year-sel" style="width:110px" onchange="loadLeaveReport()">
@@ -2825,7 +2825,13 @@ function setAttendMode(mode){
   // KPI + sections
   ['att-kpi','att-present-list','att-late-list','att-absent-list','att-no-checkout-list'].forEach(id=>{
     const el=document.getElementById(id);
-    if(el) el.closest('.card'||'div').style.display = mode==='daily' ? '' : 'none';
+    if(!el) return;
+    // หา parent card
+    let parent = el.parentElement;
+    while(parent && !parent.classList.contains('card') && parent !== document.body){
+      parent = parent.parentElement;
+    }
+    if(parent) parent.style.display = mode==='daily' ? '' : 'none';
   });
 
   const personDetail = document.getElementById('att-person-detail');
@@ -4766,7 +4772,8 @@ async function calcPayroll(){
     const tax = calcTax(sal, otAmount/12*12);  // OT ต่อเดือน
     const net   = sal + otAmount + dil - sso - tax - lateDeduct - unpaidDeduct;
 
-    return { e, sal, otAmount, otMins, lateMins, lateDeduct, dil, sso, tax, net };
+    const dilReason2 = !dilCheck?.eligible ? (dilCheck?.reason||'') : (lateMins>0 ? 'สาย '+lateMins+' นาที' : '');
+    return { e, sal, otAmount, otMins, lateMins, lateDeduct, dil, dilReason: dilReason2, sso, tax, net, unpaidDeduct: unpaidDeduct||0 };
   }));
 
   // KPI
