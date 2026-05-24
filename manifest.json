@@ -1,16 +1,57 @@
 {
   "name": "Flow HR System",
   "short_name": "Flow HR",
-  "description": "ระบบจัดการทรัพยากรบุคคล บริษัท โฟลว์ เอ็นจิเนียริ่ง แอนด์ เซอร์วิส จำกัด",
+  "description": "ระบบ HR บริษัท โฟลว์ เอ็นจิเนียริ่ง แอนด์ เซอร์วิส จำกัด",
   "start_url": "/hr/",
   "scope": "/hr/",
   "display": "standalone",
-  "background_color": "#1565C0",
-  "theme_color": "#1565C0",
+  "background_color": "#0F1923",
+  "theme_color": "#1252A3",
   "orientation": "portrait-primary",
   "lang": "th",
+  "categories": [
+    "business",
+    "productivity"
+  ],
+  "screenshots": [],
+  "shortcuts": [
+    {
+      "name": "เช็คอิน",
+      "short_name": "เช็คอิน",
+      "description": "เช็คอินเข้างาน",
+      "url": "/hr/#checkin",
+      "icons": [
+        {
+          "src": "icons/icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "การลา",
+      "short_name": "การลา",
+      "description": "ยื่นใบลา",
+      "url": "/hr/#leave",
+      "icons": [
+        {
+          "src": "icons/icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    }
+  ],
   "icons": [
-    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
-    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
-  ]
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "version": "4.30"
 }
