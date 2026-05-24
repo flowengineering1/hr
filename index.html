@@ -506,7 +506,7 @@ input[type=file]{display:none}
     </div>
   </div>
 
-  <div class="login-version">Flow HR v4.60 · © 2026 Flow Engineering and Service Co.,Ltd.</div>
+  <div class="login-version">Flow HR v4.61 · © 2026 Flow Engineering and Service Co.,Ltd.</div>
 </div>
 
 <!-- ============ DESKTOP ============ -->
@@ -529,6 +529,7 @@ input[type=file]{display:none}
       <div class="nav-item" onclick="goD('attendance')"><i class="ti ti-calendar-stats" aria-hidden="true"></i>รายงานการเข้างาน</div>
       <div class="nav-item" onclick="goD('monthly-attend')"><i class="ti ti-table" aria-hidden="true"></i>สรุปการเข้างาน</div>
       <div class="nav-item" onclick="goD('leave-report')"><i class="ti ti-beach" aria-hidden="true"></i>รายงานการลา</div>
+      <div class="nav-item" onclick="goD('ot-report')"><i class="ti ti-clock-bolt" aria-hidden="true"></i>รายงาน OT</div>
       <div class="nav-item" onclick="goD('leave')"><i class="ti ti-beach" aria-hidden="true"></i>การลา<span class="nav-badge" id="d-leave-badge" style="display:none">0</span></div>
       <div class="nav-item" onclick="goD('ot')"><i class="ti ti-clock-bolt" aria-hidden="true"></i>OT<span class="nav-badge" id="d-ot-badge" style="display:none">0</span></div>
       <div class="nav-grp">การเงิน</div>
@@ -948,6 +949,54 @@ input[type=file]{display:none}
                 <th>อนุมัติโดย</th>
               </tr></thead>
               <tbody id="lr-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- OT REPORT -->
+      <div id="dp-ot-report" class="page">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap">
+          <div style="flex:1;font-size:13px;color:#6B7280">
+            รายงาน OT <b id="otr-period-label" style="color:#0F1923"></b>
+          </div>
+          <select class="f-inp f-sel" id="otr-emp-sel" style="width:180px" onchange="renderOTReport()">
+            <option value="all">👥 พนักงานทั้งหมด</option>
+          </select>
+          <select class="f-inp f-sel" id="otr-year-sel" style="width:110px" onchange="loadOTReport()">
+            <option value="2026">2026</option>
+            <option value="2025">2025</option>
+          </select>
+          <select class="f-inp f-sel" id="otr-month-sel" style="width:140px" onchange="loadOTReport()">
+            <option value="all">ทั้งปี</option>
+          </select>
+          <button class="btn-o" onclick="exportOTReportCSV()" style="font-size:12px">
+            <i class="ti ti-download" aria-hidden="true"></i>Export CSV
+          </button>
+        </div>
+
+        <!-- Employee summary card -->
+        <div id="otr-emp-summary"></div>
+
+        <!-- KPI -->
+        <div class="kpi-grid" id="otr-kpi" style="grid-template-columns:repeat(4,1fr);margin-bottom:14px"></div>
+
+        <!-- Table -->
+        <div class="card" style="padding:0;overflow:hidden">
+          <div style="overflow-x:auto">
+            <table class="emp-table">
+              <thead><tr>
+                <th style="min-width:140px">พนักงาน</th>
+                <th>วันที่</th>
+                <th>เวลา OT</th>
+                <th>ชั่วโมง</th>
+                <th>ประเภท</th>
+                <th>อัตรา</th>
+                <th style="color:#065F46">เงิน OT</th>
+                <th>เหตุผล</th>
+                <th>สถานะ</th>
+              </tr></thead>
+              <tbody id="otr-tbody"></tbody>
             </table>
           </div>
         </div>
@@ -1704,6 +1753,7 @@ function goD(p){
   if(p==='attendance'){loadAttendDashboard();}
   if(p==='monthly-attend'){initMonthlyAttend();}
   if(p==='leave-report'){initLeaveReport();}
+  if(p==='ot-report'){initOTReport();}
   if(p==='exec-dashboard'){loadExecDashboard();}
   if(p==='payroll'){initPRSelects();renderPayrollTable();}
   if(p==='payslip'){initPSSelects('d');renderDPS();}
@@ -2296,6 +2346,194 @@ function checkIOSInstall(){
 
 // เรียก iOS check หลัง login
 setTimeout(checkIOSInstall, 2000);
+
+
+// ============================================================
+// OT REPORT
+// ============================================================
+let otrData = [];
+
+function initOTReport(){
+  // month selector
+  const mSel = document.getElementById('otr-month-sel');
+  if(mSel && mSel.options.length <= 1){
+    MTH_F.forEach((m,i)=>{
+      const o=document.createElement('option');
+      o.value=i; o.textContent=m; mSel.appendChild(o);
+    });
+  }
+  // employee selector
+  const eSel = document.getElementById('otr-emp-sel');
+  if(eSel && eSel.options.length <= 1){
+    emps.filter(e=>e.is_active!==false).forEach(e=>{
+      const o=document.createElement('option');
+      o.value=e.id;
+      o.textContent=(e.first_name||e.name||'')+(e.last_name?' '+e.last_name:'');
+      eSel.appendChild(o);
+    });
+  }
+  loadOTReport();
+}
+
+async function loadOTReport(){
+  const y    = parseInt(document.getElementById('otr-year-sel')?.value||CUR_Y);
+  const mVal = document.getElementById('otr-month-sel')?.value;
+  const isAll= mVal==='all';
+  const m    = isAll?null:parseInt(mVal);
+
+  const startDate = isAll?`${y}-01-01`:`${y}-${String(m+1).padStart(2,'0')}-01`;
+  const endDate   = isAll?`${y}-12-31`:new Date(y,m+1,0).toISOString().slice(0,10);
+
+  const lbl = document.getElementById('otr-period-label');
+  if(lbl) lbl.textContent = isAll?`ทั้งปี ${y}`:`${MTH_F[m]} ${y}`;
+
+  const{data} = await db.from('ot_records')
+    .select('*, employees!ot_records_employee_id_fkey(id,name,first_name,last_name,department,photo_url,salary)')
+    .gte('ot_date',startDate).lte('ot_date',endDate)
+    .order('ot_date',{ascending:false});
+
+  otrData = data||[];
+  renderOTReport();
+}
+
+function renderOTReport(){
+  const empFilter = document.getElementById('otr-emp-sel')?.value||'all';
+  const filtered  = empFilter==='all' ? otrData : otrData.filter(o=>o.employee_id===empFilter||o.employees?.id===empFilter);
+
+  // Employee summary card
+  const summaryEl = document.getElementById('otr-emp-summary');
+  if(summaryEl){
+    if(empFilter!=='all'){
+      const emp = emps.find(e=>e.id===empFilter)||{};
+      const name=(emp.first_name||emp.name||'—')+(emp.last_name?' '+emp.last_name:'');
+      const approved=filtered.filter(o=>o.status==='approved');
+      const totalMins=approved.reduce((s,o)=>s+(o.ot_minutes||0),0);
+      const totalAmt =approved.reduce((s,o)=>s+(o.ot_amount||0),0);
+      const pendCount=filtered.filter(o=>o.status==='pending').length;
+
+      summaryEl.innerHTML=`
+        <div class="card" style="background:linear-gradient(135deg,#1252A3,#7C3AED);color:#fff;margin-bottom:12px">
+          <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">
+            ${emp.photo_url?`<img src="${emp.photo_url}" style="width:48px;height:48px;border-radius:50%;object-fit:cover;border:2px solid rgba(255,255,255,.3)">`:`<div style="width:48px;height:48px;border-radius:50%;background:rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700">${ini(name)}</div>`}
+            <div>
+              <div style="font-size:15px;font-weight:700">${name.trim()}</div>
+              <div style="font-size:12px;opacity:.75">${emp.department||'—'} · OT Summary</div>
+            </div>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;text-align:center">
+            ${[
+              {l:'ครั้งทำ OT',    v:approved.length,                              c:'#93C5FD'},
+              {l:'ชม.รวม',        v:Math.round(totalMins/60*10)/10,               c:'#FCD34D'},
+              {l:'เงิน OT รวม',   v:'฿'+Math.round(totalAmt).toLocaleString('th-TH'), c:'#6EE7B7'},
+              {l:'รออนุมัติ',     v:pendCount,                                    c:pendCount>0?'#FCA5A5':'#6EE7B7'},
+            ].map(t=>`<div style="background:rgba(255,255,255,.15);border-radius:10px;padding:10px">
+              <div style="font-size:18px;font-weight:700;color:${t.c}">${t.v}</div>
+              <div style="font-size:10px;opacity:.8;margin-top:2px">${t.l}</div>
+            </div>`).join('')}
+          </div>
+        </div>`;
+    } else {
+      summaryEl.innerHTML='';
+    }
+  }
+
+  // KPI
+  const approved = filtered.filter(o=>o.status==='approved');
+  const pending  = filtered.filter(o=>o.status==='pending');
+  const totalMins= approved.reduce((s,o)=>s+(o.ot_minutes||0),0);
+  const totalAmt = approved.reduce((s,o)=>s+(o.ot_amount||0),0);
+
+  const kpiEl=document.getElementById('otr-kpi');
+  if(kpiEl) kpiEl.innerHTML=[
+    {n:filtered.length,                                   l:'รายการ OT ทั้งหมด', ic:'ti-list',        bg:'#DBEAFE',col:'#1D4ED8'},
+    {n:approved.length,                                   l:'อนุมัติแล้ว',       ic:'ti-check',       bg:'#D1FAE5',col:'#065F46'},
+    {n:Math.round(totalMins/60*10)/10+' ชม.',             l:'ชั่วโมง OT รวม',   ic:'ti-clock-bolt',  bg:'#FEF3C7',col:'#92400E'},
+    {n:'฿'+Math.round(totalAmt).toLocaleString('th-TH'), l:'เงิน OT รวม',       ic:'ti-cash',        bg:'#EDE9FE',col:'#4C1D95'},
+  ].map(k=>`<div class="kpi-tile">
+    <div class="kpi-ico" style="background:${k.bg};width:42px;height:42px"><i class="ti ${k.ic}" style="color:${k.col}" aria-hidden="true"></i></div>
+    <div><div class="kpi-num" style="font-size:18px">${k.n}</div><div class="kpi-lbl">${k.l}</div></div>
+  </div>`).join('');
+
+  // Table
+  const tbody=document.getElementById('otr-tbody');
+  if(!tbody) return;
+
+  const OT_TYPE={
+    weekday:'จ-ศ ×1.5', weekend_reg:'ส-อา ×1.5',
+    weekend_ot:'ส-อา ×3', holiday:'วันหยุด ×3'
+  };
+  const STATUS_BADGE={
+    approved:'<span class="badge b-green">อนุมัติ</span>',
+    pending: '<span class="badge b-orange">รออนุมัติ</span>',
+    rejected:'<span class="badge b-red">ปฏิเสธ</span>',
+  };
+
+  const rows = filtered.map(o => {
+    const e=o.employees||{};
+    const name=(e.first_name||e.name||'—')+(e.last_name?' '+e.last_name:'');
+    const avBg=DEPT_BG[e.department]||'#E3F2FD';
+    const avCol=DEPT_COL[e.department]||'#1565C0';
+    const avEl=e.photo_url
+      ? `<img src="${e.photo_url}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`
+      : `<div class="ini" style="font-size:10px;font-weight:700;color:${avCol}">${ini(name)}</div>`;
+
+    const hrs=Math.round((o.ot_minutes||0)/60*10)/10;
+    const timeLabel=o.start_time&&o.end_time?`${o.start_time.slice(0,5)} – ${o.end_time.slice(0,5)}`:'—';
+
+    return `<tr>
+      <td>
+        <div style="display:flex;align-items:center;gap:8px">
+          <div class="av" style="width:30px;height:30px;background:${avBg};flex-shrink:0">${avEl}</div>
+          <div>
+            <div style="font-weight:500;font-size:12px;white-space:nowrap">${name}</div>
+            <div style="font-size:10px;color:#9CA3AF">${e.department||'—'}</div>
+          </div>
+        </div>
+      </td>
+      <td style="white-space:nowrap;font-size:12px">${o.ot_date||'—'}</td>
+      <td style="font-size:12px;white-space:nowrap">${timeLabel}</td>
+      <td style="text-align:center;font-weight:600;color:#92400E">${hrs} ชม.</td>
+      <td style="font-size:11px;white-space:nowrap">${OT_TYPE[o.day_type]||o.day_type||'—'}</td>
+      <td style="text-align:center">×${o.ot_rate||1.5}</td>
+      <td style="font-weight:700;color:${o.status==='approved'?'#065F46':'#9CA3AF'}">
+        ${o.status==='approved'?'฿'+Math.round(o.ot_amount||0).toLocaleString('th-TH'):'—'}
+      </td>
+      <td style="font-size:11px;color:#6B7280;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${o.note||'—'}</td>
+      <td>${STATUS_BADGE[o.status]||o.status}</td>
+    </tr>`;
+  });
+
+  tbody.innerHTML = rows.length ? rows.join('')
+    : '<tr><td colspan="9" style="text-align:center;color:#B0BEC5;padding:24px">ไม่มีข้อมูล OT</td></tr>';
+}
+
+function exportOTReportCSV(){
+  const empFilter=document.getElementById('otr-emp-sel')?.value||'all';
+  const filtered =empFilter==='all'?otrData:otrData.filter(o=>o.employee_id===empFilter||o.employees?.id===empFilter);
+  const rows=[['ชื่อ','แผนก','วันที่','เวลา OT','ชั่วโมง','ประเภท','อัตรา','เงิน OT','เหตุผล','สถานะ']];
+  filtered.forEach(o=>{
+    const e=o.employees||{};
+    const hrs=Math.round((o.ot_minutes||0)/60*10)/10;
+    rows.push([
+      (e.first_name||e.name||'')+(e.last_name?' '+e.last_name:''),
+      e.department||'',
+      o.ot_date||'',
+      o.start_time&&o.end_time?`${o.start_time.slice(0,5)}-${o.end_time.slice(0,5)}`:'',
+      hrs,
+      {weekday:'จ-ศ',weekend_reg:'ส-อา',weekend_ot:'ส-อา OT',holiday:'วันหยุด'}[o.day_type]||o.day_type||'',
+      o.ot_rate||1.5,
+      o.status==='approved'?Math.round(o.ot_amount||0):'',
+      o.note||'',
+      {approved:'อนุมัติ',pending:'รออนุมัติ',rejected:'ปฏิเสธ'}[o.status]||o.status
+    ]);
+  });
+  const csv=rows.map(r=>r.join(',')).join('\n');
+  const a=document.createElement('a');
+  a.href='data:text/csv;charset=utf-8,\uFEFF'+encodeURIComponent(csv);
+  a.download=`ot_report_${document.getElementById('otr-year-sel')?.value||CUR_Y}.csv`;
+  a.click();
+  showToast('Export CSV สำเร็จ ✅');
+}
 
 // ============================================================
 // LEAVE REPORT
