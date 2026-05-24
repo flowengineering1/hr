@@ -506,7 +506,7 @@ input[type=file]{display:none}
     </div>
   </div>
 
-  <div class="login-version">Flow HR v4.54 · © 2026 Flow Engineering and Service Co.,Ltd.</div>
+  <div class="login-version">Flow HR v4.56 · © 2026 Flow Engineering and Service Co.,Ltd.</div>
 </div>
 
 <!-- ============ DESKTOP ============ -->
@@ -747,20 +747,51 @@ input[type=file]{display:none}
       <!-- ATTENDANCE DASHBOARD -->
       <div id="dp-attendance" class="page">
         <!-- Header bar -->
-        <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap">
-          <div style="flex:1;font-size:13px;color:#6B7280">
-            วันที่ <b id="att-date-label" style="color:#0F1923"></b>
-          </div>
-          <input type="date" class="f-inp" id="att-date-pick" style="width:160px"
-            onchange="loadAttendDashboard()">
-          <button class="btn-o" onclick="loadAttendDashboard()">
-            <i class="ti ti-refresh" aria-hidden="true"></i>รีเฟรช
+        <!-- Mode toggle -->
+        <div style="display:flex;gap:6px;margin-bottom:10px">
+          <button id="att-mode-daily" onclick="setAttendMode('daily')"
+            class="btn-o" style="font-size:12px;background:#0F1923;color:#fff;border-color:#0F1923">
+            <i class="ti ti-calendar-day" aria-hidden="true"></i>รายวัน
           </button>
-          <button id="att-auto-checkout-btn" class="btn-o" onclick="autoCheckoutAll()"
-            style="color:#92400E;border-color:#FCD34D;display:none">
-            <i class="ti ti-clock-check" aria-hidden="true"></i>Auto Checkout
+          <button id="att-mode-person" onclick="setAttendMode('person')"
+            class="btn-o" style="font-size:12px">
+            <i class="ti ti-user" aria-hidden="true"></i>รายคน
           </button>
         </div>
+
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap">
+          <div style="flex:1;font-size:13px;color:#6B7280">
+            <span id="att-date-label" style="color:#0F1923;font-weight:600"></span>
+          </div>
+          <!-- Daily mode controls -->
+          <div id="att-daily-controls" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <input type="date" class="f-inp" id="att-date-pick" style="width:155px" onchange="loadAttendDashboard()">
+            <button id="att-auto-checkout-btn" class="btn-o" onclick="autoCheckoutAll()" style="color:#92400E;border-color:#FCD34D;display:none;font-size:12px">
+              <i class="ti ti-clock-check" aria-hidden="true"></i>Auto Checkout
+            </button>
+          </div>
+          <!-- Person mode controls -->
+          <div id="att-person-controls" style="display:none;gap:8px;align-items:center;flex-wrap:wrap">
+            <select class="f-inp f-sel" id="att-emp-sel" style="width:180px" onchange="loadPersonAttend()">
+              <option value="">เลือกพนักงาน</option>
+            </select>
+            <input type="date" class="f-inp" id="att-start-pick" style="width:140px">
+            <span style="color:#9CA3AF;font-size:12px">ถึง</span>
+            <input type="date" class="f-inp" id="att-end-pick" style="width:140px">
+            <button class="btn-o" onclick="loadPersonAttend()" style="font-size:12px">
+              <i class="ti ti-search" aria-hidden="true"></i>ดูข้อมูล
+            </button>
+          </div>
+          <button class="btn-o" onclick="exportAttendCSV()" style="font-size:12px">
+            <i class="ti ti-download" aria-hidden="true"></i>Export CSV
+          </button>
+          <button class="btn-o" onclick="loadAttendDashboard()" style="font-size:12px">
+            <i class="ti ti-refresh" aria-hidden="true"></i>
+          </button>
+        </div>
+
+        <!-- Person attend detail (hidden by default) -->
+        <div id="att-person-detail" style="display:none"></div>
 
         <!-- KPI row -->
         <div class="kpi-grid kpi-d" id="att-kpi" style="grid-template-columns:repeat(4,1fr);margin-bottom:14px"></div>
@@ -879,11 +910,14 @@ input[type=file]{display:none}
           <div style="flex:1;font-size:13px;color:#6B7280">
             รายงานการลา <b id="lr-period-label" style="color:#0F1923"></b>
           </div>
-          <select class="f-inp f-sel" id="lr-year-sel" style="width:120px" onchange="loadLeaveReport()">
+          <select class="f-inp f-sel" id="lr-emp-sel" style="width:180px" onchange="renderLeaveReport()">
+            <option value="all">👥 พนักงานทั้งหมด</option>
+          </select>
+          <select class="f-inp f-sel" id="lr-year-sel" style="width:110px" onchange="loadLeaveReport()">
             <option value="2026">2026</option>
             <option value="2025">2025</option>
           </select>
-          <select class="f-inp f-sel" id="lr-month-sel" style="width:150px" onchange="loadLeaveReport()">
+          <select class="f-inp f-sel" id="lr-month-sel" style="width:140px" onchange="loadLeaveReport()">
             <option value="all">ทั้งปี</option>
           </select>
           <button class="btn-o" onclick="exportLeaveReportCSV()" style="font-size:12px">
@@ -892,6 +926,7 @@ input[type=file]{display:none}
         </div>
 
         <!-- KPI -->
+        <div id="lr-emp-summary"></div>
         <div class="kpi-grid" id="lr-kpi" style="grid-template-columns:repeat(4,1fr);margin-bottom:14px"></div>
 
         <!-- Table -->
@@ -2273,6 +2308,17 @@ function initLeaveReport(){
       mSel.appendChild(o);
     });
   }
+  // init employee selector
+  const eSel = document.getElementById('lr-emp-sel');
+  if(eSel && eSel.options.length <= 1){
+    emps.filter(e=>e.is_active!==false).forEach(e => {
+      const o = document.createElement('option');
+      o.value = e.id;
+      const name = (e.first_name||e.name||'')+(e.last_name?' '+e.last_name:'');
+      o.textContent = name.trim();
+      eSel.appendChild(o);
+    });
+  }
   loadLeaveReport();
 }
 
@@ -2313,11 +2359,52 @@ async function loadLeaveReport(){
     <div><div class="kpi-num" style="font-size:18px">${k.n}</div><div class="kpi-lbl">${k.l}</div></div>
   </div>`).join('');
 
+  // Filter by employee
+  const empFilter = document.getElementById('lr-emp-sel')?.value || 'all';
+  const filtered  = empFilter === 'all'
+    ? leaveReportData
+    : leaveReportData.filter(l => l.employee_id === empFilter || l.employees?.id === empFilter);
+
+  // Employee summary card ถ้าเลือกคนเดียว
+  const empSummaryEl = document.getElementById('lr-emp-summary');
+  if(empSummaryEl){
+    if(empFilter !== 'all'){
+      const selEmp = emps.find(e=>e.id===empFilter);
+      const empLvs = leaveReportData.filter(l=>l.employee_id===empFilter||l.employees?.id===empFilter);
+      const byType = {annual:0,sick:0,personal:0,unpaid:0};
+      empLvs.filter(l=>l.status==='approved').forEach(l=>{ byType[l.type]=(byType[l.type]||0)+(l.days||1); });
+      const name = selEmp ? (selEmp.first_name||selEmp.name||'—')+(selEmp.last_name?' '+selEmp.last_name:'') : '—';
+      empSummaryEl.innerHTML = `
+        <div class="card" style="background:linear-gradient(135deg,#1252A3,#1D4ED8);color:#fff;margin-bottom:12px">
+          <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">
+            ${selEmp?.photo_url?`<img src="${selEmp.photo_url}" style="width:44px;height:44px;border-radius:50%;object-fit:cover;border:2px solid rgba(255,255,255,.3)">`:`<div style="width:44px;height:44px;border-radius:50%;background:rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700">${ini(name)}</div>`}
+            <div>
+              <div style="font-size:15px;font-weight:700">${name.trim()}</div>
+              <div style="font-size:12px;opacity:.75">${selEmp?.department||'—'} · ${selEmp?.position||'—'}</div>
+            </div>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;text-align:center">
+            ${[
+              {l:'ลาป่วย',    v:byType.sick,    max:30,  c:'#FCA5A5'},
+              {l:'ลากิจ',     v:byType.personal,max:3,   c:'#FCD34D'},
+              {l:'พักร้อน',   v:byType.annual,  max:6,   c:'#6EE7B7'},
+              {l:'ไม่รับค่าจ้าง',v:byType.unpaid,max:null,c:'#E5E7EB'},
+            ].map(t=>`<div style="background:rgba(255,255,255,.15);border-radius:10px;padding:10px 6px">
+              <div style="font-size:20px;font-weight:700;color:${t.c}">${t.v}</div>
+              <div style="font-size:10px;opacity:.8;margin-top:2px">${t.l}${t.max?' / '+t.max:''}</div>
+            </div>`).join('')}
+          </div>
+        </div>`;
+    } else {
+      empSummaryEl.innerHTML = '';
+    }
+  }
+
   // Table
   const tbody = document.getElementById('lr-tbody');
   if(!tbody) return;
 
-  const LV_TYPE = {annual:'🏖️ ลาพักร้อน', sick:'🤒 ลาป่วย', personal:'💼 ลากิจ'};
+  const LV_TYPE = {annual:'🏖️ ลาพักร้อน', sick:'🤒 ลาป่วย', personal:'💼 ลากิจ', unpaid:'💸 ลาไม่รับค่าจ้าง'};
   const STATUS_BADGE = {
     approved: '<span class="badge b-green">อนุมัติ</span>',
     pending:  '<span class="badge b-orange">รออนุมัติ</span>',
@@ -2325,7 +2412,7 @@ async function loadLeaveReport(){
     cancelled:'<span class="badge b-gray">ยกเลิก</span>',
   };
 
-  tbody.innerHTML = leaveReportData.length ? leaveReportData.map(l => {
+  tbody.innerHTML = filtered.length ? filtered.map(l => {
     const e    = l.employees||{};
     const name = (e.first_name||e.name||'—')+(e.last_name?' '+e.last_name:'');
     const avBg  = DEPT_BG[e.department]||'#E3F2FD';
@@ -2712,6 +2799,198 @@ function exportMonthlyAttendCSV(){
 function checkUnpaidLeave(type){
   const note = document.getElementById('lf-unpaid-note');
   if(note) note.style.display = type === 'unpaid' ? 'block' : 'none';
+}
+
+
+// ============================================================
+// ATTENDANCE — PERSON MODE
+// ============================================================
+let attendMode = 'daily';
+
+function setAttendMode(mode){
+  attendMode = mode;
+
+  // toggle buttons
+  document.getElementById('att-mode-daily').style.cssText =
+    mode==='daily' ? 'font-size:12px;background:#0F1923;color:#fff;border-color:#0F1923;padding:7px 14px;border-radius:8px;border:1px solid;cursor:pointer;display:flex;align-items:center;gap:6px;font-family:inherit'
+                   : 'font-size:12px;background:#fff;color:#374151;border-color:#D1D5DB;padding:7px 14px;border-radius:8px;border:1px solid;cursor:pointer;display:flex;align-items:center;gap:6px;font-family:inherit';
+  document.getElementById('att-mode-person').style.cssText =
+    mode==='person' ? 'font-size:12px;background:#0F1923;color:#fff;border-color:#0F1923;padding:7px 14px;border-radius:8px;border:1px solid;cursor:pointer;display:flex;align-items:center;gap:6px;font-family:inherit'
+                    : 'font-size:12px;background:#fff;color:#374151;border-color:#D1D5DB;padding:7px 14px;border-radius:8px;border:1px solid;cursor:pointer;display:flex;align-items:center;gap:6px;font-family:inherit';
+
+  document.getElementById('att-daily-controls').style.display  = mode==='daily'  ? 'flex' : 'none';
+  document.getElementById('att-person-controls').style.display = mode==='person' ? 'flex' : 'none';
+
+  // KPI + sections
+  ['att-kpi','att-present-list','att-late-list','att-absent-list','att-no-checkout-list'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(el) el.closest('.card'||'div').style.display = mode==='daily' ? '' : 'none';
+  });
+
+  const personDetail = document.getElementById('att-person-detail');
+  if(personDetail) personDetail.style.display = mode==='person' ? 'block' : 'none';
+
+  if(mode==='person'){
+    // โหลด employee dropdown
+    const sel = document.getElementById('att-emp-sel');
+    if(sel && sel.options.length <= 1){
+      emps.filter(e=>e.is_active!==false).forEach(e=>{
+        const o=document.createElement('option');
+        o.value=e.id;
+        o.textContent=(e.first_name||e.name||'')+(e.last_name?' '+e.last_name:'');
+        sel.appendChild(o);
+      });
+    }
+    // set default date range (เดือนนี้)
+    const startPick = document.getElementById('att-start-pick');
+    const endPick   = document.getElementById('att-end-pick');
+    if(startPick && !startPick.value){
+      const now = new Date();
+      startPick.value = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-01`;
+      endPick.value   = now.toISOString().slice(0,10);
+    }
+    const lbl = document.getElementById('att-date-label');
+    if(lbl) lbl.textContent = 'ดูรายคน';
+  }
+}
+
+async function loadPersonAttend(){
+  const empId    = document.getElementById('att-emp-sel')?.value;
+  const startStr = document.getElementById('att-start-pick')?.value;
+  const endStr   = document.getElementById('att-end-pick')?.value;
+  const detail   = document.getElementById('att-person-detail');
+
+  if(!empId || !startStr || !endStr){ showToast('กรุณาเลือกพนักงานและช่วงวันที่'); return; }
+
+  const emp = emps.find(e=>e.id===empId) || {};
+  const name = (emp.first_name||emp.name||'—')+(emp.last_name?' '+emp.last_name:'');
+
+  if(detail) detail.innerHTML = '<div style="text-align:center;padding:20px;color:#9CA3AF"><i class="ti ti-loader-2" style="animation:spin 1s linear infinite;font-size:24px"></i></div>';
+
+  // ดึง attendance
+  const{data:attData} = await db.from('attendances')
+    .select('check_in,check_out,distance_m,offices(name)')
+    .eq('employee_id', empId)
+    .gte('check_in', startStr+'T00:00:00')
+    .lte('check_in', endStr+'T23:59:59')
+    .order('check_in');
+
+  // ดึง OT
+  const{data:otData} = await db.from('ot_records')
+    .select('ot_date,ot_minutes,ot_amount,ot_rate,status,note')
+    .eq('employee_id', empId)
+    .gte('ot_date', startStr)
+    .lte('ot_date', endStr)
+    .order('ot_date');
+
+  // ดึง settings
+  const{data:ws} = await db.from('work_settings').select('work_start,late_after_mins,late_deduct_per_min').limit(1);
+  const workStart     = ws?.[0]?.work_start||'08:30';
+  const lateAfterMins = ws?.[0]?.late_after_mins||0;
+  const lateRate      = ws?.[0]?.late_deduct_per_min||1;
+  const [wh,wm]       = workStart.split(':').map(Number);
+  const workStartMins = wh*60+wm+lateAfterMins;
+
+  // สร้าง map OT ต่อวัน
+  const otByDate = {};
+  (otData||[]).forEach(o=>{ otByDate[o.ot_date] = otByDate[o.ot_date]||[]; otByDate[o.ot_date].push(o); });
+
+  const att = attData||[];
+  if(!att.length){
+    if(detail) detail.innerHTML = '<div class="card" style="text-align:center;color:#B0BEC5;padding:30px">ไม่มีข้อมูลการเข้างานในช่วงนี้</div>';
+    return;
+  }
+
+  // สรุปรวม
+  let totalDays=0, lateDays=0, totalLateMins=0, totalOTMins=0, totalOTAmt=0;
+  att.forEach(a=>{
+    const ci=new Date(a.check_in);
+    const late=Math.max(0,ci.getHours()*60+ci.getMinutes()-workStartMins);
+    if(late>0){lateDays++;totalLateMins+=late;}
+    totalDays++;
+  });
+  Object.values(otByDate).forEach(ots=>ots.filter(o=>o.status==='approved').forEach(o=>{
+    totalOTMins+=o.ot_minutes||0; totalOTAmt+=o.ot_amount||0;
+  }));
+
+  const days_th = ['อา','จ','อ','พ','พฤ','ศ','ส'];
+
+  let html = `
+  <!-- Employee header card -->
+  <div class="card" style="background:linear-gradient(135deg,#0F1923,#1252A3);color:#fff;margin-bottom:12px">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">
+      ${emp.photo_url?`<img src="${emp.photo_url}" style="width:48px;height:48px;border-radius:50%;object-fit:cover;border:2px solid rgba(255,255,255,.3)">`:`<div style="width:48px;height:48px;border-radius:50%;background:rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700">${ini(name)}</div>`}
+      <div>
+        <div style="font-size:15px;font-weight:700">${name.trim()}</div>
+        <div style="font-size:12px;opacity:.75">${emp.department||'—'} · ${startStr} ถึง ${endStr}</div>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;text-align:center">
+      <div style="background:rgba(255,255,255,.15);border-radius:10px;padding:10px">
+        <div style="font-size:22px;font-weight:700">${totalDays}</div>
+        <div style="font-size:10px;opacity:.8">วันมา</div>
+      </div>
+      <div style="background:rgba(255,255,255,.15);border-radius:10px;padding:10px">
+        <div style="font-size:22px;font-weight:700;color:${lateDays>0?'#FCA5A5':'#6EE7B7'}">${lateDays}</div>
+        <div style="font-size:10px;opacity:.8">วันสาย</div>
+      </div>
+      <div style="background:rgba(255,255,255,.15);border-radius:10px;padding:10px">
+        <div style="font-size:22px;font-weight:700;color:#FCD34D">${Math.round(totalOTMins/60*10)/10}</div>
+        <div style="font-size:10px;opacity:.8">ชม.OT</div>
+      </div>
+      <div style="background:rgba(255,255,255,.15);border-radius:10px;padding:10px">
+        <div style="font-size:22px;font-weight:700;color:#6EE7B7">฿${Math.round(totalOTAmt).toLocaleString('th-TH')}</div>
+        <div style="font-size:10px;opacity:.8">เงิน OT</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Detail table -->
+  <div class="card" style="padding:0;overflow:hidden">
+    <div style="overflow-x:auto">
+      <table class="emp-table">
+        <thead><tr>
+          <th>วันที่</th>
+          <th>เวลาเข้า</th>
+          <th>เวลาออก</th>
+          <th>ชั่วโมง</th>
+          <th>สาย</th>
+          <th>OT</th>
+          <th>สาขา</th>
+        </tr></thead>
+        <tbody>
+          ${att.map(a => {
+            const ci   = new Date(a.check_in);
+            const co   = a.check_out ? new Date(a.check_out) : null;
+            const late = Math.max(0,ci.getHours()*60+ci.getMinutes()-workStartMins);
+            const hrs  = co ? Math.round((co-ci)/36000)/100 : null;
+            const dateStr = ci.toLocaleDateString('th-TH',{weekday:'short',day:'numeric',month:'short'});
+            const otOnDay = otByDate[ci.toISOString().slice(0,10)]||[];
+            const approvedOT = otOnDay.filter(o=>o.status==='approved');
+            const pendingOT  = otOnDay.filter(o=>o.status==='pending');
+
+            return `<tr style="${late>0?'background:#FFF7F7':''}">
+              <td style="white-space:nowrap;font-weight:500">${days_th[ci.getDay()]} ${dateStr}</td>
+              <td style="font-weight:600;color:${late>0?'#9A3412':'#065F46'}">${ci.toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'})}</td>
+              <td style="color:${co?'#374151':'#EF4444'}">${co?co.toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'}):'<span style="font-size:11px">ลืม checkout</span>'}</td>
+              <td>${hrs!=null?hrs+' ชม.':'—'}</td>
+              <td style="color:${late>0?'#9A3412':'#9CA3AF'};font-weight:${late>0?'600':'400'}">
+                ${late>0?`${late} นาที<div style="font-size:9px">-฿${Math.round(late*lateRate)}</div>`:'—'}
+              </td>
+              <td>
+                ${approvedOT.length?`<span style="color:#065F46;font-weight:600;font-size:12px">✅ ${approvedOT.reduce((s,o)=>s+(o.ot_minutes||0),0)} นาที<br>฿${Math.round(approvedOT.reduce((s,o)=>s+(o.ot_amount||0),0)).toLocaleString('th-TH')}</span>`:''}
+                ${pendingOT.length?`<span style="color:#92400E;font-size:11px">⏳ รออนุมัติ</span>`:''}
+                ${!approvedOT.length&&!pendingOT.length?'<span style="color:#9CA3AF">—</span>':''}
+              </td>
+              <td style="font-size:11px;color:#6B7280">${a.offices?.name||'—'}</td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>
+  </div>`;
+
+  if(detail) detail.innerHTML = html;
 }
 
 // ============================================================
