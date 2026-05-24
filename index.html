@@ -506,7 +506,7 @@ input[type=file]{display:none}
     </div>
   </div>
 
-  <div class="login-version">Flow HR v4.52 · © 2026 Flow Engineering and Service Co.,Ltd.</div>
+  <div class="login-version">Flow HR v4.53 · © 2026 Flow Engineering and Service Co.,Ltd.</div>
 </div>
 
 <!-- ============ DESKTOP ============ -->
@@ -4396,6 +4396,14 @@ async function calcPayroll(){
   const dilBonus      = ws?.[0]?.diligence_bonus || 500;
   const [wh, wm]      = workStart.split(':').map(Number);
   const workStartMins = wh*60 + wm + lateAfterMins;
+
+  // ดึง unpaid leaves เดือนนั้น
+  const{data: lvData} = await db.from('leaves')
+    .select('employee_id,type,days,status')
+    .eq('status','approved')
+    .eq('type','unpaid')
+    .gte('start_date', startDate)
+    .lte('end_date', endDate);
 
   // คำนวณต่อ employee
   const rows = await Promise.all(emps.map(async e => {
