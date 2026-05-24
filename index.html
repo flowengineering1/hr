@@ -506,7 +506,7 @@ input[type=file]{display:none}
     </div>
   </div>
 
-  <div class="login-version">Flow HR v4.53 · © 2026 Flow Engineering and Service Co.,Ltd.</div>
+  <div class="login-version">Flow HR v4.54 · © 2026 Flow Engineering and Service Co.,Ltd.</div>
 </div>
 
 <!-- ============ DESKTOP ============ -->
@@ -2410,7 +2410,7 @@ async function downloadPayslipPDF(empId, month, year){
     lateMins+=Math.max(0,ci.getHours()*60+ci.getMinutes()-workStartMins);
   });
   const lateDeduct = Math.round(lateMins*lateRate);
-  const dilCheck   = await checkDiligence(emp.id,m,y);
+  const dilCheck   = await checkDiligence(emp.id,y,m);
   const dil        = (emp.diligence_eligible!==false && lateMins===0 && dilCheck.eligible) ? 500 : 0;
   const sso        = calcSSO(sal, emp.sso_eligible!==false);
   const tax        = calcTax(sal, otAmount/12);
@@ -4477,7 +4477,7 @@ async function calcPayroll(){
     const unpaidDeduct= Math.round((e.salary||0)/30 * unpaidDays);
 
     // เบี้ยขยัน — ตรวจครบ: มีสิทธิ์ + ไม่สาย + ไม่ขาด + ไม่ลืม checkout
-    const dilCheck = await checkDiligence(e.id, m, y);
+    const dilCheck = await checkDiligence(e.id, y, m);
     const dil = (e.diligence_eligible!==false && lateMins===0 && dilCheck.eligible) ? dilBonus : 0;
     const dilReason = !dilCheck.eligible ? dilCheck.reason : (lateMins>0 ? 'สาย '+lateMins+' นาที' : '');
 
@@ -4663,7 +4663,7 @@ async function renderPS(pfx,aId){
   }).length;
 
   // ===== เบี้ยขยัน — ตรวจครบ =====
-  const dilCheck = await checkDiligence(emp.id, m, y);
+  const dilCheck = await checkDiligence(emp.id, y, m);
   const dil = (emp.diligence_eligible!==false && lateMins===0 && dilCheck.eligible) ? 500 : 0;
   const dilReason = !dilCheck.eligible ? dilCheck.reason : (lateMins>0 ? 'สาย '+lateMins+' นาที' : '');
 
