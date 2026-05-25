@@ -506,7 +506,7 @@ input[type=file]{display:none}
     </div>
   </div>
 
-  <div class="login-version">Flow HR v4.67 · © 2026 Flow Engineering and Service Co.,Ltd.</div>
+  <div class="login-version">Flow HR v4.69 · © 2026 Flow Engineering and Service Co.,Ltd.</div>
 </div>
 
 <!-- ============ DESKTOP ============ -->
@@ -5654,14 +5654,18 @@ function renderAttendDashboard(workStart, lateAfterMins, lateDeduct){
     const avEl = e.photo_url
       ? `<img src="${e.photo_url}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`
       : `<div class="ini" style="color:${avCol};font-size:11px;font-weight:700">${ini(name)}</div>`;
+    const ci = new Date(row.check_in);
+    const dateStr = ci.toLocaleDateString('th-TH',{weekday:'short',day:'numeric',month:'short'});
+    const officeName = row.offices?.name || '';
     return `
-    <div style="display:flex;align-items:center;gap:9px;padding:8px 0;border-bottom:.5px solid #F1F5F9">
-      <div class="av" style="width:32px;height:32px;background:${avBg};flex-shrink:0">${avEl}</div>
+    <div style="display:flex;align-items:center;gap:9px;padding:10px 0;border-bottom:.5px solid #F1F5F9">
+      <div class="av" style="width:36px;height:36px;background:${avBg};flex-shrink:0">${avEl}</div>
       <div style="flex:1;min-width:0">
         <div style="font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${name}</div>
-        <div style="font-size:10px;color:#6B7280">
-          ${row.ciTime} ${row.coTime?'→ '+row.coTime:''}
-          ${showLate && row.lateMin>0 ? `<span style="color:#9A3412;font-weight:600"> · สาย ${row.lateMin} นาที${row.lateDeductAmt>0?' (-฿'+row.lateDeductAmt+')':''}</span>` : ''}
+        <div style="font-size:10px;color:#6B7280;margin-top:2px">
+          📅 ${dateStr} · ⏰ ${row.ciTime}${row.coTime?' → '+row.coTime:''}
+          ${officeName?`<span style="background:#DBEAFE;color:#1D4ED8;padding:1px 6px;border-radius:6px;margin-left:4px;font-size:9px;font-weight:600">${officeName}</span>`:''}
+          ${showLate && row.lateMin>0 ? `<span style="color:#9A3412;font-weight:600;margin-left:4px"> สาย ${row.lateMin} นาที${row.lateDeductAmt>0?' (-฿'+row.lateDeductAmt+')':''}</span>` : ''}
         </div>
       </div>
     </div>`;
