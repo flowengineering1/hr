@@ -506,7 +506,7 @@ input[type=file]{display:none}
     </div>
   </div>
 
-  <div class="login-version">Flow HR v4.70 · © 2026 Flow Engineering and Service Co.,Ltd.</div>
+  <div class="login-version">Flow HR v4.71 · © 2026 Flow Engineering and Service Co.,Ltd.</div>
 </div>
 
 <!-- ============ DESKTOP ============ -->
@@ -3299,9 +3299,34 @@ async function loadPersonAttend(){
     if(late>0){lateDays++;totalLateMins+=late;}
     totalDays++;
   });
-  Object.values(otByDate).forEach(ots=>ots.filter(o=>o.status==='approved').forEach(o=>{
-    totalOTMins+=o.ot_minutes||0; totalOTAmt+=o.ot_amount||0;
-  }));
+  // ดึง work_end สำหรับคำนวณ OT
+  const{data:wsD} = await db.from('work_settings').select('work_end').limit(1);
+  const workEnd2 = wsD?.[0]?.work_end||'17:30';
+  const [weh2,wem2] = workEnd2.split(':').map(Number);
+
+  // คำนวณ OT จาก attendance จริง
+  // สร้าง att map ต่อวัน
+  const attDateMap = {};
+  att.forEach(a=>{ const d=a.check_in.slice(0,10); attDateMap[d]=a; });
+
+  Object.entries(otByDate).forEach(([date,ots])=>{
+    const attOnDay = attDateMap[date];
+    ots.filter(o=>o.status==='approved').forEach(o=>{
+      if(!attOnDay || !attOnDay.check_out){
+        // ไม่มาหรือลืม checkout → OT = 0
+        return;
+      }
+      const coTime = new Date(attOnDay.check_out);
+      const workEndTime = new Date(attOnDay.check_in);
+      workEndTime.setHours(weh2,wem2,0,0);
+      const actualMins = Math.max(0,Math.round((coTime-workEndTime)/60000));
+      const earnedMins = Math.min(actualMins, o.ot_minutes||0);
+      if(earnedMins<=0) return;
+      const hourlyRate = (emp.salary||0)/30/8;
+      totalOTMins += earnedMins;
+      totalOTAmt  += Math.round((earnedMins/60)*hourlyRate*(o.ot_rate||1.5));
+    });
+  });
 
   const days_th = ['อา','จ','อ','พ','พฤ','ศ','ส'];
 
@@ -3355,9 +3380,24 @@ async function loadPersonAttend(){
             const late = Math.max(0,ci.getHours()*60+ci.getMinutes()-workStartMins);
             const hrs  = co ? Math.round((co-ci)/36000)/100 : null;
             const dateStr = ci.toLocaleDateString('th-TH',{weekday:'short',day:'numeric',month:'short'});
-            const otOnDay = otByDate[ci.toISOString().slice(0,10)]||[];
+            const dateKey  = ci.toISOString().slice(0,10);
+            const otOnDay = otByDate[dateKey]||[];
             const approvedOT = otOnDay.filter(o=>o.status==='approved');
             const pendingOT  = otOnDay.filter(o=>o.status==='pending');
+
+            // คำนวณ OT จริงตาม attendance
+            let rowOTMins=0, rowOTAmt=0, otMissed=false;
+            approvedOT.forEach(o=>{
+              if(!a.check_out){ otMissed=true; return; }
+              const co2=new Date(a.check_out);
+              const we2=new Date(a.check_in); we2.setHours(weh2,wem2,0,0);
+              const aMins=Math.max(0,Math.round((co2-we2)/60000));
+              const eMins=Math.min(aMins,o.ot_minutes||0);
+              if(eMins<=0){ otMissed=true; return; }
+              const hr2=(emp.salary||0)/30/8;
+              rowOTMins+=eMins;
+              rowOTAmt+=Math.round((eMins/60)*hr2*(o.ot_rate||1.5));
+            });
 
             return `<tr style="${late>0?'background:#FFF7F7':''}">
               <td style="white-space:nowrap;font-weight:500">${days_th[ci.getDay()]} ${dateStr}</td>
@@ -3368,7 +3408,11 @@ async function loadPersonAttend(){
                 ${late>0?`${late} นาที<div style="font-size:9px">-฿${Math.round(late*lateRate)}</div>`:'—'}
               </td>
               <td>
-                ${approvedOT.length?`<span style="color:#065F46;font-weight:600;font-size:12px">✅ ${approvedOT.reduce((s,o)=>s+(o.ot_minutes||0),0)} นาที<br>฿${Math.round(approvedOT.reduce((s,o)=>s+(o.ot_amount||0),0)).toLocaleString('th-TH')}</span>`:''}
+                ${approvedOT.length
+                  ? (otMissed||rowOTMins===0
+                      ? '<span style="color:#EF4444;font-size:11px">฿0<br><span style="font-size:9px">ไม่มาทำ/ลืม checkout</span></span>'
+                      : `<span style="color:#065F46;font-weight:600;font-size:12px">✅ ${rowOTMins} นาที<br>฿${rowOTAmt.toLocaleString('th-TH')}</span>`)
+                  : ''}
                 ${pendingOT.length?`<span style="color:#92400E;font-size:11px">⏳ รออนุมัติ</span>`:''}
                 ${!approvedOT.length&&!pendingOT.length?'<span style="color:#9CA3AF">—</span>':''}
               </td>
