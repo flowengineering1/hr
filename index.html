@@ -506,7 +506,7 @@ input[type=file]{display:none}
     </div>
   </div>
 
-  <div class="login-version">Flow HR v4.71 · © 2026 Flow Engineering and Service Co.,Ltd.</div>
+  <div class="login-version">Flow HR v4.72 · © 2026 Flow Engineering and Service Co.,Ltd.</div>
 </div>
 
 <!-- ============ DESKTOP ============ -->
@@ -1391,9 +1391,24 @@ input[type=file]{display:none}
   <div id="m-nav">
     <div class="m-nb act" id="mnb-home" onclick="goM('home')"><i class="ti ti-home" aria-hidden="true"></i>หน้าหลัก</div>
     <div class="m-nb" id="mnb-checkin" onclick="goM('checkin')"><i class="ti ti-clock" aria-hidden="true"></i>เวลา</div>
-    <div class="m-nb" id="mnb-employees" onclick="goM('employees')"><i class="ti ti-users" aria-hidden="true"></i>พนักงาน</div>
+    <div class="m-nb" onclick="openMobileDrawer()" style="position:relative">
+      <div style="width:40px;height:40px;background:var(--blue);border-radius:50%;display:flex;align-items:center;justify-content:center;margin-bottom:2px;box-shadow:0 4px 12px rgba(18,82,163,.4)">
+        <i class="ti ti-grid-3x3" style="color:#fff;font-size:20px" aria-hidden="true"></i>
+      </div>
+      <span style="font-size:10px">เมนู</span>
+    </div>
     <div class="m-nb" id="mnb-leave" onclick="goM('leave')"><i class="ti ti-beach" aria-hidden="true"></i>ลา<div class="m-nb-badge" id="m-leave-badge" style="display:none">0</div></div>
     <div class="m-nb" id="mnb-payslip" onclick="goM('payslip')"><i class="ti ti-receipt" aria-hidden="true"></i>สลิป</div>
+  </div>
+
+  <!-- Mobile Drawer -->
+  <div id="m-drawer-bg" onclick="closeMobileDrawer()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9990"></div>
+  <div id="m-drawer" style="display:none;position:fixed;bottom:0;left:0;right:0;background:#fff;border-radius:20px 20px 0 0;z-index:9991;padding:16px;max-height:85vh;overflow-y:auto">
+    <div style="width:36px;height:4px;background:#E5E7EB;border-radius:2px;margin:0 auto 16px"></div>
+    <div style="font-size:13px;font-weight:700;color:#374151;margin-bottom:12px">เมนูทั้งหมด</div>
+
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px" id="m-drawer-grid"></div>
+    <div style="height:16px"></div>
   </div>
 </div>
 
@@ -2353,6 +2368,70 @@ function checkIOSInstall(){
 // เรียก iOS check หลัง login
 setTimeout(checkIOSInstall, 2000);
 
+
+
+// ============================================================
+// MOBILE DRAWER MENU
+// ============================================================
+const M_MENU_ITEMS = [
+  {icon:'ti-layout-dashboard', label:'Dashboard',        page:'home'},
+  {icon:'ti-chart-bar',        label:'Executive',        page:'exec-dashboard', roles:['owner','hr_manager','dept_head','accountant']},
+  {icon:'ti-users',            label:'พนักงาน',           page:'employees'},
+  {icon:'ti-clock',            label:'เช็คอิน',           page:'checkin'},
+  {icon:'ti-beach',            label:'การลา',             page:'leave'},
+  {icon:'ti-clock-bolt',       label:'OT',               page:'ot'},
+  {icon:'ti-calendar-stats',   label:'เข้างานรายวัน',    page:'attendance'},
+  {icon:'ti-table',            label:'สรุปรายเดือน',     page:'monthly-attend'},
+  {icon:'ti-calendar-check',   label:'รายงานลา',         page:'leave-report'},
+  {icon:'ti-clock-bolt',       label:'รายงาน OT',        page:'ot-report'},
+  {icon:'ti-cash',             label:'เงินเดือน',         page:'payroll'},
+  {icon:'ti-receipt',          label:'สลิป',              page:'payslip'},
+  {icon:'ti-sitemap',          label:'Org Chart',        page:'orgchart'},
+  {icon:'ti-shield-check',     label:'สิทธิ์',            page:'perm-mgr', roles:['owner']},
+  {icon:'ti-map-pin',          label:'สาขา',              page:'offices', roles:['owner','hr_manager']},
+  {icon:'ti-settings',         label:'ตั้งค่า',           page:'settings', roles:['owner','hr_manager']},
+];
+
+function openMobileDrawer(){
+  const grid = document.getElementById('m-drawer-grid');
+  if(grid){
+    const role = currentUser?.role;
+    const visible = M_MENU_ITEMS.filter(m => !m.roles || m.roles.includes(role) || can(m.page));
+    grid.innerHTML = visible.map(m=>`
+      <button onclick="goMDrawer('${m.page}')"
+        style="background:#F9FAFB;border:1px solid #E5E7EB;border-radius:12px;padding:12px 8px;cursor:pointer;font-family:inherit;display:flex;flex-direction:column;align-items:center;gap:6px;width:100%">
+        <i class="ti ${m.icon}" style="font-size:22px;color:#1252A3" aria-hidden="true"></i>
+        <span style="font-size:10px;font-weight:600;color:#374151;text-align:center;line-height:1.3">${m.label}</span>
+      </button>`).join('');
+  }
+  document.getElementById('m-drawer-bg').style.display = 'block';
+  document.getElementById('m-drawer').style.display = 'block';
+}
+
+function closeMobileDrawer(){
+  document.getElementById('m-drawer-bg').style.display = 'none';
+  document.getElementById('m-drawer').style.display = 'none';
+}
+
+function goMDrawer(page){
+  closeMobileDrawer();
+  // map mobile pages — บางหน้าใช้ goD แทน goM
+  const mobilePages = ['home','checkin','employees','leave','payslip'];
+  if(mobilePages.includes(page)){
+    goM(page);
+  } else {
+    // ใช้ desktop page — redirect ไป desktop mode
+    // สร้าง mobile page wrapper ถ้ายังไม่มี
+    goD(page);
+    // ซ่อน mobile layout แสดง desktop layout
+    const mobileLayout = document.getElementById('mobile-layout');
+    const desktopLayout = document.getElementById('desktop-layout');
+    if(mobileLayout && desktopLayout){
+      mobileLayout.style.display = 'none';
+      desktopLayout.style.display = 'flex';
+    }
+  }
+}
 
 // ============================================================
 // OT REPORT
