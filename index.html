@@ -506,7 +506,7 @@ input[type=file]{display:none}
     </div>
   </div>
 
-  <div class="login-version">Flow HR v4.73 · © 2026 Flow Engineering and Service Co.,Ltd.</div>
+  <div class="login-version">Flow HR v4.74 · © 2026 Flow Engineering and Service Co.,Ltd.</div>
 </div>
 
 <!-- ============ DESKTOP ============ -->
@@ -1409,6 +1409,22 @@ input[type=file]{display:none}
 
     <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px" id="m-drawer-grid"></div>
     <div style="height:16px"></div>
+  </div>
+</div>
+
+<!-- ==================== LATE DETAIL POPUP ==================== -->
+<div class="late-popup-bg" id="late-popup" onclick="closeLatePopup(event)">
+  <div class="late-popup">
+    <div class="late-popup-hdr">
+      <div>
+        <div style="font-size:15px;font-weight:700" id="late-popup-name">—</div>
+        <div style="font-size:11px;color:#6B7280;margin-top:2px" id="late-popup-month">—</div>
+      </div>
+      <button onclick="closeLatePopup()" style="background:none;border:none;cursor:pointer;color:#9CA3AF;font-size:22px;line-height:1"><i class="ti ti-x"></i></button>
+    </div>
+    <div class="late-popup-body" id="late-popup-body">
+      <div style="text-align:center;color:#B0BEC5;padding:20px">กำลังโหลด...</div>
+    </div>
   </div>
 </div>
 
