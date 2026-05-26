@@ -506,7 +506,7 @@ input[type=file]{display:none}
     </div>
   </div>
 
-  <div class="login-version">Flow HR v4.72 · © 2026 Flow Engineering and Service Co.,Ltd.</div>
+  <div class="login-version">Flow HR v4.73 · © 2026 Flow Engineering and Service Co.,Ltd.</div>
 </div>
 
 <!-- ============ DESKTOP ============ -->
@@ -2396,7 +2396,10 @@ function openMobileDrawer(){
   const grid = document.getElementById('m-drawer-grid');
   if(grid){
     const role = currentUser?.role;
-    const visible = M_MENU_ITEMS.filter(m => !m.roles || m.roles.includes(role) || can(m.page));
+    const visible = M_MENU_ITEMS.filter(m => {
+      if(!m.roles) return true; // ทุกคนเห็น
+      return m.roles.includes(role) || canPage(m.page);
+    });
     grid.innerHTML = visible.map(m=>`
       <button onclick="goMDrawer('${m.page}')"
         style="background:#F9FAFB;border:1px solid #E5E7EB;border-radius:12px;padding:12px 8px;cursor:pointer;font-family:inherit;display:flex;flex-direction:column;align-items:center;gap:6px;width:100%">
@@ -5461,16 +5464,39 @@ async function renderPS(pfx,aId){
   const workStartMins = wh*60+wm+lateAfterMins;
 
   const{data:attData} = await db.from('attendances')
-    .select('check_in')
+    .select('check_in,check_out')
     .eq('employee_id', emp.id)
     .gte('check_in', startDate+'T00:00:00')
     .lte('check_in', endDate+'T23:59:59');
 
+  // สร้าง attendance map ต่อวัน
+  const attByDate = {};
+  (attData||[]).forEach(a=>{ const d=a.check_in.slice(0,10); attByDate[d]=a; });
+
+  const [weh2,wem2] = workEnd.split(':').map(Number);
+
+  // init OT totals
+  let otAmount=0, otMins=0;
+
+  // คำนวณ OT จาก attendance จริง
+  (otData||[]).forEach(ot=>{
+    const att=attByDate[ot.ot_date];
+    if(!att||!att.check_out) return;
+    const coTime=new Date(att.check_out);
+    const workEndTime=new Date(att.check_in);
+    workEndTime.setHours(weh2,wem2,0,0);
+    const actualMins=Math.max(0,Math.round((coTime-workEndTime)/60000));
+    const earnedMins=Math.min(actualMins,ot.ot_minutes||0);
+    if(earnedMins<=0) return;
+    const hourlyRate=(emp.salary||0)/30/8;
+    otAmount+=Math.round((earnedMins/60)*hourlyRate*(ot.ot_rate||1.5));
+    otMins+=earnedMins;
+  });
+
   let lateMins=0;
   (attData||[]).forEach(a=>{
     const ci=new Date(a.check_in);
-    const ciM=ci.getHours()*60+ci.getMinutes();
-    lateMins+=Math.max(0,ciM-workStartMins);
+    lateMins+=Math.max(0,ci.getHours()*60+ci.getMinutes()-workStartMins);
   });
   const lateDeduct = Math.round(lateMins*lateRate);
   const lateDays   = (attData||[]).filter(a=>{
