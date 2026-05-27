@@ -506,7 +506,7 @@ input[type=file]{display:none}
     </div>
   </div>
 
-  <div class="login-version">Flow HR v4.74 · © 2026 Flow Engineering and Service Co.,Ltd.</div>
+  <div class="login-version">Flow HR v4.78 · © 2026 Flow Engineering and Service Co.,Ltd.</div>
 </div>
 
 <!-- ============ DESKTOP ============ -->
@@ -1680,6 +1680,10 @@ input[type=file]{display:none}
     <input type="hidden" id="of-id">
     <div class="f-group"><label class="f-lbl">ชื่อสาขา</label><input class="f-inp" id="of-name" placeholder="สาขา A"></div>
     <div class="f-group"><label class="f-lbl">ที่อยู่</label><input class="f-inp" id="of-addr" placeholder="ที่อยู่"></div>
+    <div class="f-group"><label class="f-lbl">คำอธิบาย / รายละเอียด</label>
+      <textarea class="f-inp" id="of-desc" rows="3" placeholder="เช่น อาคาร A ชั้น 3 · ใกล้ BTS อ่อนนุช · เวลาทำการ จ-ศ 08:30-17:30"
+        style="resize:vertical;font-family:inherit;font-size:13px"></textarea>
+    </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
       <div class="f-group"><label class="f-lbl">Latitude</label><input type="number" class="f-inp" id="of-lat" step="0.000001"></div>
       <div class="f-group"><label class="f-lbl">Longitude</label><input type="number" class="f-inp" id="of-lng" step="0.000001"></div>
@@ -4543,8 +4547,26 @@ function checkGPS(){
       if(!off){bar.className='gps-bar gps-fail';if(txt)txt.textContent='ไม่มีสาขา';return;}
       const dist=Math.round(hvs(pos.coords.latitude,pos.coords.longitude,off.lat,off.lng));
       const acc=Math.round(pos.coords.accuracy);
-      if(dist<=off.radius_m){bar.className='gps-bar gps-ok';if(dot)dot.className='gdot dg';if(txt)txt.textContent=`อยู่ใน ${off.name} ✓`;if(det)det.textContent=`ห่าง ${dist}ม. · GPS ±${acc}ม.`;}
-      else{bar.className='gps-bar gps-fail';if(dot)dot.className='gdot dr';if(txt)txt.textContent=`อยู่นอก ${off.name}`;if(det)det.textContent=`ห่าง ${dist}ม. · รัศมี ${off.radius_m}ม.`;}
+      // ตรวจว่าสาขามีพิกัดจริงไหม
+      if(!off.lat || !off.lng){
+        // ไม่มีพิกัด → block checkin
+        bar.className='gps-bar gps-fail';
+        if(dot) dot.className='gdot dr';
+        if(txt) txt.textContent=`${off.name}: ยังไม่ได้ตั้งพิกัด`;
+        if(det) det.textContent='กรุณาตั้งค่าพิกัด GPS ในระบบ';
+        return;
+      }
+      if(dist<=off.radius_m){
+        bar.className='gps-bar gps-ok';
+        if(dot) dot.className='gdot dg';
+        if(txt) txt.textContent=`อยู่ใน ${off.name} ✓`;
+        if(det) det.textContent=`ห่าง ${dist}ม. · GPS ±${acc}ม.`;
+      } else {
+        bar.className='gps-bar gps-fail';
+        if(dot) dot.className='gdot dr';
+        if(txt) txt.textContent=`อยู่นอก ${off.name}`;
+        if(det) det.textContent=`ห่าง ${dist}ม. · รัศมี ${off.radius_m}ม. · กรุณาเข้าพื้นที่สาขา`;
+      }
     });
   },()=>{['d','m'].forEach(p=>{const b=document.getElementById(`${p}-gps-bar`);if(b)b.className='gps-bar gps-fail';const t=document.getElementById(`${p}-gps-txt`);if(t)t.textContent='GPS ไม่มีสัญญาณ — ออกไปที่โล่ง';});},{enableHighAccuracy:true,timeout:10000});
 }
@@ -4631,8 +4653,12 @@ let currentAttendId = null; // id ของ attendance record ที่กำล
 
 async function doCheckIn(pfx){
   const bar = document.getElementById(`${pfx}-gps-bar`);
-  if(!bar || bar.classList.contains('gps-fail')){
-    showToast('อยู่นอกพื้นที่หรือ GPS ไม่มีสัญญาณ'); return;
+  if(!bar){ showToast('ไม่พบข้อมูล GPS'); return; }
+  if(bar.classList.contains('gps-fail')){
+    const det = document.getElementById(`${pfx}-gps-det`);
+    const msg = det?.textContent || 'อยู่นอกพื้นที่';
+    showToast('❌ ไม่สามารถเช็คอินได้ · ' + msg);
+    return;
   }
   if(bar.classList.contains('gps-wait')){
     showToast('กำลังตรวจสอบ GPS...'); return;
@@ -4664,8 +4690,30 @@ async function doCheckIn(pfx){
       return;
     }
 
-
     const off  = offices[offIdx];
+
+    // ตรวจระยะห่างจริงอีกครั้งก่อน insert
+    if(off){
+      if(!off.lat || !off.lng){
+        showToast('❌ สาขายังไม่ได้ตั้งพิกัด GPS');
+        return;
+      }
+      const distCheck = Math.round(hvs(pos.coords.latitude,pos.coords.longitude,off.lat,off.lng));
+      if(distCheck > off.radius_m){
+        showToast(`❌ ห่างจาก${off.name} ${distCheck}ม. (รัศมี ${off.radius_m}ม.) ไม่สามารถเช็คอินได้`);
+        // อัปเดต GPS bar ด้วย
+        ['d','m'].forEach(p=>{
+          const b=document.getElementById(`${p}-gps-bar`);
+          const t=document.getElementById(`${p}-gps-txt`);
+          const d=document.getElementById(`${p}-gps-det`);
+          if(b) b.className='gps-bar gps-fail';
+          if(t) t.textContent=`อยู่นอก ${off.name}`;
+          if(d) d.textContent=`ห่าง ${distCheck}ม. · รัศมี ${off.radius_m}ม.`;
+        });
+        return;
+      }
+    }
+
     const dist = off ? Math.round(hvs(pos.coords.latitude,pos.coords.longitude,off.lat,off.lng)) : null;
     const now  = new Date();
 
@@ -4729,7 +4777,6 @@ function setCheckedIn(pfx, att){
 
 async function doCheckOut(pfx){
   if(!currentAttendId){
-    // หา attendance ที่ยังไม่ได้ check out
     const td = todayS();
     const{data} = await db.from('attendances')
       .select('id,check_in')
@@ -4741,6 +4788,32 @@ async function doCheckOut(pfx){
     currentAttendId = data[0].id;
   }
 
+  // ตรวจ GPS ก่อน checkout
+  const gpsResult = await new Promise(resolve => {
+    navigator.geolocation.getCurrentPosition(pos => {
+      const off = offices[offIdx];
+      if(off && off.lat && off.lng){
+        const dist = Math.round(hvs(pos.coords.latitude,pos.coords.longitude,off.lat,off.lng));
+        if(dist > off.radius_m){
+          showToast(`❌ ห่างจาก${off.name} ${dist}ม. (รัศมี ${off.radius_m}ม.) ไม่สามารถเช็คเอาท์ได้`);
+          ['d','m'].forEach(p=>{
+            const b=document.getElementById(`${p}-gps-bar`);
+            const t=document.getElementById(`${p}-gps-txt`);
+            const d=document.getElementById(`${p}-gps-det`);
+            if(b) b.className='gps-bar gps-fail';
+            if(t) t.textContent=`อยู่นอก ${off.name}`;
+            if(d) d.textContent=`ห่าง ${dist}ม. · รัศมี ${off.radius_m}ม.`;
+          });
+          resolve('blocked');
+          return;
+        }
+      }
+      resolve('ok');
+    }, () => resolve('ok'), { timeout: 8000, maximumAge: 30000 });
+  });
+
+  if(gpsResult === 'blocked') return;
+
   const now = new Date();
   const{error} = await db.from('attendances')
     .update({check_out: now.toISOString()})
@@ -4751,7 +4824,6 @@ async function doCheckOut(pfx){
   if(workTimer){ clearInterval(workTimer); workTimer=null; }
   currentAttendId = null;
 
-  // อัปเดต UI
   ['d','m'].forEach(p=>{
     const sb = document.getElementById(`${p}-ci-status-bar`);
     if(sb){
@@ -5638,11 +5710,11 @@ function renderOfficesList(){
     </div>`).join('');
 }
 
-function openOffice(){document.getElementById('of-id').value='';['of-name','of-addr','of-lat','of-lng'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});document.getElementById('of-radius').value='20';showSh('office');}
-function editOff(id){const o=offices.find(x=>x.id===id);if(!o)return;document.getElementById('of-id').value=o.id;document.getElementById('of-name').value=o.name;document.getElementById('of-addr').value=o.address||'';document.getElementById('of-lat').value=o.lat;document.getElementById('of-lng').value=o.lng;document.getElementById('of-radius').value=o.radius_m;showSh('office');}
+function openOffice(){document.getElementById('of-id').value='';['of-name','of-addr','of-lat','of-lng','of-desc'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});document.getElementById('of-radius').value='100';showSh('office');}
+function editOff(id){const o=offices.find(x=>x.id===id);if(!o)return;document.getElementById('of-id').value=o.id;document.getElementById('of-name').value=o.name;document.getElementById('of-addr').value=o.address||'';document.getElementById('of-lat').value=o.lat;document.getElementById('of-lng').value=o.lng;document.getElementById('of-radius').value=o.radius_m;const descEl=document.getElementById('of-desc');if(descEl)descEl.value=o.description||'';showSh('office');}
 async function saveOffice(){
   const id=document.getElementById('of-id').value;
-  const payload={name:document.getElementById('of-name').value,address:document.getElementById('of-addr').value,lat:parseFloat(document.getElementById('of-lat').value),lng:parseFloat(document.getElementById('of-lng').value),radius_m:parseInt(document.getElementById('of-radius').value)||20};
+  const payload={name:document.getElementById('of-name').value,address:document.getElementById('of-addr').value,description:(document.getElementById('of-desc')?.value||'').trim(),lat:parseFloat(document.getElementById('of-lat').value),lng:parseFloat(document.getElementById('of-lng').value),radius_m:parseInt(document.getElementById('of-radius').value)||100};
   if(!payload.name||isNaN(payload.lat)){showToast('กรุณากรอกชื่อและพิกัด');return;}
   const{error}=id?await db.from('offices').update(payload).eq('id',id):await db.from('offices').insert(payload);
   if(error){showToast('เกิดข้อผิดพลาด: '+error.message);return;}
