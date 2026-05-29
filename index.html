@@ -506,7 +506,7 @@ input[type=file]{display:none}
     </div>
   </div>
 
-  <div class="login-version">Flow HR v4.78 · © 2026 Flow Engineering and Service Co.,Ltd.</div>
+  <div class="login-version">Flow HR v4.79 · © 2026 Flow Engineering and Service Co.,Ltd.</div>
 </div>
 
 <!-- ============ DESKTOP ============ -->
@@ -573,6 +573,7 @@ input[type=file]{display:none}
         <input placeholder="ค้นหาพนักงาน..." oninput="filterEmps(this.value)">
       </div>
       <button class="d-hdr-btn lang-toggle" onclick="toggleLang()" title="เปลี่ยนภาษา" style="font-size:11px;font-weight:700;padding:0 10px">EN</button>
+      <button class="d-hdr-btn" id="btn-back-mobile" onclick="backToMobile()" title="กลับหน้าจอมือถือ" style="display:none"><i class="ti ti-device-mobile" aria-hidden="true"></i></button>
       <button class="d-hdr-btn" onclick="loadAll()" title="รีเฟรช"><i class="ti ti-refresh" aria-hidden="true"></i></button>
       <button class="d-hdr-btn" title="แจ้งเตือน"><i class="ti ti-bell" aria-hidden="true"></i></button>
       <div class="user-chip" onclick="showChangePass()" title="เปลี่ยนรหัสผ่าน / ออกจากระบบ">
@@ -2390,6 +2391,14 @@ setTimeout(checkIOSInstall, 2000);
 
 
 
+
+function backToMobile(){
+  const appM = document.getElementById('app-m');
+  const appD = document.getElementById('app-d');
+  if(appM) appM.style.cssText = '';
+  if(appD) appD.style.cssText = '';
+}
+
 // ============================================================
 // MOBILE DRAWER MENU
 // ============================================================
@@ -2413,6 +2422,13 @@ const M_MENU_ITEMS = [
 ];
 
 function openMobileDrawer(){
+  // แสดงปุ่มกลับ mobile ถ้าอยู่ใน desktop mode บนมือถือ
+  const btnBack = document.getElementById('btn-back-mobile');
+  if(btnBack && window.innerWidth < 768){
+    const appD = document.getElementById('app-d');
+    btnBack.style.display = appD?.style.display === 'flex' || appD?.style.cssText.includes('flex') ? 'flex' : 'none';
+  }
+
   const grid = document.getElementById('m-drawer-grid');
   if(grid){
     const role = currentUser?.role;
@@ -2438,21 +2454,19 @@ function closeMobileDrawer(){
 
 function goMDrawer(page){
   closeMobileDrawer();
-  // map mobile pages — บางหน้าใช้ goD แทน goM
+
+  // หน้าที่มีใน mobile นำทางด้วย goM
   const mobilePages = ['home','checkin','employees','leave','payslip'];
+
   if(mobilePages.includes(page)){
     goM(page);
   } else {
-    // ใช้ desktop page — redirect ไป desktop mode
-    // สร้าง mobile page wrapper ถ้ายังไม่มี
+    // หน้าที่ไม่มีใน mobile → เปิด desktop mode
+    const appM = document.getElementById('app-m');
+    const appD = document.getElementById('app-d');
+    if(appM) appM.style.cssText = 'display:none!important';
+    if(appD) appD.style.cssText = 'display:flex!important';
     goD(page);
-    // ซ่อน mobile layout แสดง desktop layout
-    const mobileLayout = document.getElementById('mobile-layout');
-    const desktopLayout = document.getElementById('desktop-layout');
-    if(mobileLayout && desktopLayout){
-      mobileLayout.style.display = 'none';
-      desktopLayout.style.display = 'flex';
-    }
   }
 }
 
