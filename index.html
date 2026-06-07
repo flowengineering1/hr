@@ -447,6 +447,9 @@ input[type=file]{display:none}
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
   <!-- SheetJS for Excel export -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <!-- Leaflet (แผนที่สาขา + วงรัศมีเช็คอิน) -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 </head>
 <body>
 <div id="device-alert" class="device-alert">
@@ -671,6 +674,7 @@ input[type=file]{display:none}
           <div class="card">
             <div class="card-hdr"><div class="card-hdr-l"><i class="ti ti-map-pin" aria-hidden="true"></i>เช็คอิน</div></div>
             <div id="d-off-tabs" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px"></div>
+            <div id="d-off-map"></div>
             <div class="gps-bar gps-wait" id="d-gps-bar">
               <div class="gdot db" id="d-gps-dot"></div>
               <div style="flex:1"><div style="font-weight:500" id="d-gps-txt">กำลังตรวจสอบ...</div><div style="color:#78909C;font-size:10px" id="d-gps-det">กรุณารอ</div></div>
@@ -1315,6 +1319,7 @@ input[type=file]{display:none}
     <!-- M-CHECKIN -->
     <div id="mp-checkin" class="page">
       <div id="m-off-tabs" style="display:flex;gap:8px;padding:10px 12px 4px;background:#fff;border-bottom:.5px solid #E0E0E0;overflow-x:auto"></div>
+      <div id="m-off-map" style="padding:10px 12px 0"></div>
       <div style="padding:10px 12px 0">
         <div class="gps-bar gps-wait" id="m-gps-bar">
           <div class="gdot db" id="m-gps-dot"></div>
@@ -1766,7 +1771,8 @@ function empStatusBadge(e){
 }
 const fmtT=d=>new Date(d).toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'});
 const p2=n=>String(n).padStart(2,'0');
-const todayS=()=>TODAY.toISOString().slice(0,10);
+// วันที่วันนี้ตาม timezone เครื่อง (คำนวณสดทุกครั้ง — กันค่า stale ถ้าเปิดแอปค้างข้ามวัน และกัน bug เช้ามืดจาก UTC)
+const todayS=()=>{const d=new Date();return `${d.getFullYear()}-${p2(d.getMonth()+1)}-${p2(d.getDate())}`;};
 const hvs=(la1,lo1,la2,lo2)=>{const R=6371000,dL=(la2-la1)*Math.PI/180,dN=(lo2-lo1)*Math.PI/180;const a=Math.sin(dL/2)**2+Math.cos(la1*Math.PI/180)*Math.cos(la2*Math.PI/180)*Math.sin(dN/2)**2;return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));};
 
 function avHTML(e,sz=44,edit=false){
@@ -1847,7 +1853,12 @@ async function loadEmps(){
 }
 async function loadOffices(){
   const{data}=await db.from('offices').select('*').eq('is_active',true);
-  offices=data||[];renderOffTabs('d');renderOffTabs('m');
+  // เรียงให้สาขา "สำนักงานขาย" ขึ้นก่อนเสมอ (และถูกเลือกเป็นค่าเริ่มต้น)
+  offices=(data||[]).sort((a,b)=>{
+    const rank=o=>/สำนักงานขาย/.test(o.name||'')?0:1;
+    return rank(a)-rank(b);
+  });
+  renderOffTabs('d');renderOffTabs('m');
 }
 async function loadLeaves(){
   const uid = currentUser?.id;
@@ -2397,6 +2408,8 @@ function backToMobile(){
   const appD = document.getElementById('app-d');
   if(appM) appM.style.cssText = '';
   if(appD) appD.style.cssText = '';
+  const btnBack = document.getElementById('btn-back-mobile');
+  if(btnBack) btnBack.style.display = 'none';
 }
 
 // ============================================================
@@ -2432,9 +2445,10 @@ function openMobileDrawer(){
   const grid = document.getElementById('m-drawer-grid');
   if(grid){
     const role = currentUser?.role;
+    // กรองให้ตรงกับ sidebar desktop (applyRoleUI): canPage เป็นหลัก + perm-mgr เฉพาะ Owner
     const visible = M_MENU_ITEMS.filter(m => {
-      if(!m.roles) return true; // ทุกคนเห็น
-      return m.roles.includes(role) || canPage(m.page);
+      if(m.page === 'perm-mgr') return isOwner();
+      return canPage(m.page);
     });
     grid.innerHTML = visible.map(m=>`
       <button onclick="goMDrawer('${m.page}')"
@@ -2461,11 +2475,13 @@ function goMDrawer(page){
   if(mobilePages.includes(page)){
     goM(page);
   } else {
-    // หน้าที่ไม่มีใน mobile → เปิด desktop mode
+    // หน้าที่ไม่มีใน mobile → เปิด desktop mode + แสดงปุ่มกลับมือถือ
     const appM = document.getElementById('app-m');
     const appD = document.getElementById('app-d');
     if(appM) appM.style.cssText = 'display:none!important';
     if(appD) appD.style.cssText = 'display:flex!important';
+    const btnBack = document.getElementById('btn-back-mobile');
+    if(btnBack) btnBack.style.display = 'flex';
     goD(page);
   }
 }
@@ -2908,46 +2924,24 @@ async function downloadPayslipPDF(empId, month, year){
   const y = year  ?? CUR_Y;
   const startDate = `${y}-${String(m+1).padStart(2,'0')}-01`;
   const endDate   = new Date(y,m+1,0).toISOString().slice(0,10);
-  const sal = emp.salary||0;
 
-  // ดึงข้อมูล
-  const[{data:otData},{data:attData},{data:ws}] = await Promise.all([
-    db.from('ot_records').select('ot_amount,ot_minutes').eq('employee_id',emp.id).eq('status','approved').gte('ot_date',startDate).lte('ot_date',endDate),
+  // ดึงข้อมูล (ชุดเดียวกับสลิปบนจอ/payroll)
+  const[{data:otData},{data:attData},{data:ws},{data:lvData}] = await Promise.all([
+    db.from('ot_records').select('ot_date,ot_minutes,ot_rate').eq('employee_id',emp.id).eq('status','approved').gte('ot_date',startDate).lte('ot_date',endDate),
     db.from('attendances').select('check_in,check_out').eq('employee_id',emp.id).gte('check_in',startDate+'T00:00:00').lte('check_in',endDate+'T23:59:59'),
-    db.from('work_settings').select('work_start,late_after_mins,late_deduct_per_min').limit(1)
+    db.from('work_settings').select('work_start,work_end,late_after_mins,late_deduct_per_min,diligence_bonus').limit(1),
+    db.from('leaves').select('type,days,status').eq('employee_id',emp.id).eq('status','approved').eq('type','unpaid').gte('start_date',startDate).lte('end_date',endDate),
   ]);
 
-  const workStart     = ws?.[0]?.work_start||'08:30';
-  const lateAfterMins = ws?.[0]?.late_after_mins||0;
-  const lateRate      = ws?.[0]?.late_deduct_per_min||1;
-  const [wh,wm]       = workStart.split(':').map(Number);
-  const workStartMins = wh*60+wm+lateAfterMins;
+  // คำนวณด้วยสูตรกลาง — ตัวเลขตรงกับสลิปบนจอและตาราง payroll ทุกตัว
+  const dilCheck = await checkDiligence(emp.id,y,m);
+  const calc = calcPaySlip(emp, otData, attData, lvData, ws?.[0]||{}, dilCheck);
 
-  const otAmount  = (otData||[]).reduce((s,o)=>s+(o.ot_amount||0),0);
-  let lateMins=0;
-  (attData||[]).forEach(a=>{
-    const ci=new Date(a.check_in);
-    lateMins+=Math.max(0,ci.getHours()*60+ci.getMinutes()-workStartMins);
-  });
-  const lateDeduct = Math.round(lateMins*lateRate);
-  const dilCheck   = await checkDiligence(emp.id,y,m);
-  const dil        = (emp.diligence_eligible!==false && lateMins===0 && dilCheck.eligible) ? 500 : 0;
-  const sso        = calcSSO(sal, emp.sso_eligible!==false);
-  const tax        = calcTax(sal, otAmount/12);
-  const net        = sal+otAmount+dil-sso-tax-lateDeduct;
-  const fmt        = n => '฿'+Math.round(n).toLocaleString('th-TH');
-
-  const {jsPDF} = window.jspdf;
-  const doc = new jsPDF({orientation:'portrait', unit:'mm', format:'a4'});
-
-  // โหลด font ไทย (Sarabun)
-  // ใช้ built-in helvetica + แสดงเป็น romanized ก่อน (jsPDF ยังไม่ support Thai ตรงๆ)
-  // วิธีที่ดีกว่า: สร้าง HTML แล้ว print
-  await printPayslipHTML(emp, m, y, {sal,otAmount,dil,lateDeduct,sso,tax,net,lateMins});
+  await printPayslipHTML(emp, m, y, calc);
 }
 
 async function printPayslipHTML(emp, m, y, calc){
-  const {sal,otAmount,dil,lateDeduct,sso,tax,net,lateMins} = calc;
+  const {sal,otAmount,dil,lateDeduct,unpaidDeduct,sso,tax,net,lateMins} = calc;
   const fmt = n => '฿'+Math.round(n).toLocaleString('th-TH');
   const name = (emp.first_name||emp.name||'')+(emp.last_name?' '+emp.last_name:'');
   const monthLabel = MTH_F[m]+' '+y;
@@ -3004,8 +2998,9 @@ async function printPayslipHTML(emp, m, y, calc){
 
     <div class="section-title">หักออก</div>
     ${lateDeduct>0?`<div class="row"><span style="color:#9A3412">หักสาย (${lateMins} นาที)</span><span style="color:#9A3412;font-weight:600">-${fmt(lateDeduct)}</span></div>`:''}
-    <div class="row"><span>ประกันสังคม</span><span style="color:#EF4444">-${fmt(calcSSO(sal,emp.sso_eligible!==false))}</span></div>
-    <div class="row"><span>ภาษีหัก ณ ที่จ่าย</span><span style="color:#EF4444">-${fmt(calcTax(sal))}</span></div>
+    ${unpaidDeduct>0?`<div class="row"><span style="color:#9A3412">ลาไม่รับค่าจ้าง</span><span style="color:#9A3412;font-weight:600">-${fmt(unpaidDeduct)}</span></div>`:''}
+    <div class="row"><span>ประกันสังคม</span><span style="color:#EF4444">-${fmt(sso)}</span></div>
+    <div class="row"><span>ภาษีหัก ณ ที่จ่าย</span><span style="color:#EF4444">-${fmt(tax)}</span></div>
 
     <div class="total-row"><span>รับสุทธิ</span><span>${fmt(net)}</span></div>
 
@@ -4049,6 +4044,7 @@ function renderLeavePend(){
 }
 
 async function approveLv(id){
+  if(!can('leave_approve')){ showToast('ไม่มีสิทธิ์อนุมัติใบลา'); return; }
   const l = leaves.find(x=>x.id===id);
   const name = l?.employees?.first_name || l?.employees?.name || 'พนักงาน';
   const type = {annual:'พักร้อน',sick:'ป่วย',personal:'กิจ'}[l?.type] || l?.type || '';
@@ -4058,12 +4054,14 @@ async function approveLv(id){
     msg: `<b>${name}</b><br>ลา${type} ${l?.start_date||''} – ${l?.end_date||''}<br>${l?.days||1} วัน`,
     okText: 'อนุมัติ', okColor: '#1A6B2E',
     onOk: async () => {
+      if(!can('leave_approve')){ showToast('ไม่มีสิทธิ์อนุมัติใบลา'); return; }
       await db.from('leaves').update({status:'approved'}).eq('id',id);
       showToast('อนุมัติใบลาแล้ว ✅'); await loadLeaves();
     }
   });
 }
 async function rejectLv(id){
+  if(!can('leave_approve')){ showToast('ไม่มีสิทธิ์ปฏิเสธใบลา'); return; }
   const l = leaves.find(x=>x.id===id);
   const name = l?.employees?.first_name || l?.employees?.name || 'พนักงาน';
   const type = {annual:'พักร้อน',sick:'ป่วย',personal:'กิจ'}[l?.type] || l?.type || '';
@@ -4073,6 +4071,7 @@ async function rejectLv(id){
     msg: `<b>${name}</b><br>ลา${type} ${l?.start_date||''} – ${l?.end_date||''}<br>${l?.days||1} วัน`,
     okText: 'ปฏิเสธ', okColor: '#B91C1C',
     onOk: async () => {
+      if(!can('leave_approve')){ showToast('ไม่มีสิทธิ์ปฏิเสธใบลา'); return; }
       await db.from('leaves').update({status:'rejected'}).eq('id',id);
       showToast('ปฏิเสธใบลาแล้ว'); await loadLeaves();
     }
@@ -4082,12 +4081,59 @@ async function submitLeave(){
   if(!currentUser){ showToast('กรุณา Login ก่อน'); return; }
   const s = document.getElementById('lf-start').value;
   const e = document.getElementById('lf-end').value;
+  const type = document.getElementById('lf-type').value;
   if(!s||!e){ showToast('กรุณาเลือกวันที่'); return; }
   if(new Date(e) < new Date(s)){ showToast('วันสิ้นสุดต้องหลังวันเริ่ม'); return; }
-  const days = Math.ceil((new Date(e)-new Date(s))/86400000)+1;
+
+  // นับเฉพาะวันทำงาน — ตัดเสาร์-อาทิตย์ + วันหยุดนักขัตฤกษ์/บริษัทในช่วงที่ลา
+  const [{data:pubHols},{data:compHols}] = await Promise.all([
+    db.from('public_holidays').select('holiday_date').gte('holiday_date',s).lte('holiday_date',e),
+    db.from('company_holidays').select('holiday_date').gte('holiday_date',s).lte('holiday_date',e),
+  ]);
+  const holidays = new Set([...(pubHols||[]),...(compHols||[])].map(h=>h.holiday_date));
+  let days = 0;
+  for(let d=new Date(s); d<=new Date(e); d.setDate(d.getDate()+1)){
+    const dow = d.getDay();
+    const ds  = `${d.getFullYear()}-${p2(d.getMonth()+1)}-${p2(d.getDate())}`;
+    if(dow!==0 && dow!==6 && !holidays.has(ds)) days++;
+  }
+  if(days <= 0){ showToast('ช่วงที่เลือกไม่มีวันทำงาน (เป็นวันหยุด/เสาร์-อาทิตย์)'); return; }
+
+  // ตรวจสิทธิ์ + โควต้าก่อนยื่น (unpaid ไม่จำกัด)
+  if(type !== 'unpaid'){
+    const yr = new Date(s).getFullYear();
+    const{data:wsq} = await db.from('work_settings').select('annual_leave_days,annual_leave_after_months').limit(1);
+    const annualDays   = wsq?.[0]?.annual_leave_days || 6;
+    const annualAfterM = wsq?.[0]?.annual_leave_after_months || 12;
+    const QUOTA = { sick:30, personal:3, annual:annualDays };
+
+    // ลาพักร้อน — ต้องทำงานครบระยะเวลาก่อน
+    if(type === 'annual'){
+      const emp = emps.find(x=>x.id===currentUser.id);
+      const sd  = emp?.start_date ? new Date(emp.start_date) : null;
+      const monthsWorked = sd ? (new Date(s).getFullYear()-sd.getFullYear())*12 + (new Date(s).getMonth()-sd.getMonth()) : 0;
+      if(!sd || monthsWorked < annualAfterM){
+        showToast(`ยังไม่ได้สิทธิ์ลาพักร้อน (ต้องทำงานครบ ${annualAfterM} เดือน)`); return;
+      }
+    }
+
+    if(QUOTA[type] != null){
+      const{data:existing} = await db.from('leaves')
+        .select('days,status')
+        .eq('employee_id', currentUser.id)
+        .eq('type', type)
+        .in('status',['approved','pending'])
+        .gte('start_date', `${yr}-01-01`).lte('end_date', `${yr}-12-31`);
+      const used = (existing||[]).reduce((sum,l)=>sum+(l.days||1),0);
+      if(used + days > QUOTA[type]){
+        showToast(`โควต้า${LV_LABEL[type]||type}ไม่พอ · ใช้ไป ${used} + ขอ ${days} เกิน ${QUOTA[type]} วัน`); return;
+      }
+    }
+  }
+
   const{error} = await db.from('leaves').insert({
-    employee_id: currentUser.id,          // ← เพิ่ม employee_id
-    type:        document.getElementById('lf-type').value,
+    employee_id: currentUser.id,
+    type,
     start_date:  s,
     end_date:    e,
     days,
@@ -4096,7 +4142,7 @@ async function submitLeave(){
   });
   if(error){ showToast('เกิดข้อผิดพลาด: '+error.message); return; }
   closeSh('leave');
-  showToast('ส่งใบลาสำเร็จ ✅');
+  showToast(`ส่งใบลาสำเร็จ (${days} วันทำงาน) ✅`);
   await loadLeaves();
 }
 
@@ -4472,14 +4518,9 @@ async function saveEmp(){
     // เปลี่ยน password ถ้ากรอก
     const newPass = g('nf-password');
     if(!error && newPass && newPass.length >= 6){
-      // ใช้ md5 ตรงๆ เพราะ login_with_device ใช้ md5(password)
-      try{
-        await db.from('employees').update({
-          password_hash: newPass  // Supabase จะ md5 ผ่าน DB function
-        }).eq('id', editId);
-        // ทำ md5 ผ่าน RPC แทน
-        await db.rpc('set_password_md5', {p_employee_id: editId, p_password: newPass});
-      }catch(e){}
+      // ตั้งรหัสผ่านผ่าน RPC ที่ทำ md5 ฝั่ง DB เท่านั้น (ห้ามเขียน plaintext ลง password_hash)
+      const{error:pwErr} = await db.rpc('set_password_md5', {p_employee_id: editId, p_password: newPass});
+      if(pwErr){ showToast('บันทึกข้อมูลแล้ว แต่ตั้งรหัสผ่านไม่สำเร็จ: '+pwErr.message); }
     }
     // อัปเดต username
     const newUser = (g('nf-username')||'').toLowerCase().trim();
@@ -4536,9 +4577,77 @@ document.getElementById('photo-input').addEventListener('change',async function(
 // ============================================================
 function renderOffTabs(pfx){
   const el=document.getElementById(`${pfx}-off-tabs`);if(!el)return;
-  if(!offices.length){el.innerHTML='<div style="font-size:12px;color:#9E9E9E">ไปตั้งค่าสาขาที่เมนู จัดการสาขา</div>';return;}
+  if(!offices.length){el.innerHTML='<div style="font-size:12px;color:#9E9E9E">ไปตั้งค่าสาขาที่เมนู จัดการสาขา</div>';renderOffMap(pfx);return;}
   if(pfx==='d')el.innerHTML=offices.map((o,i)=>`<button onclick="selOff(${i})" style="padding:8px 16px;border-radius:10px;border:1.5px solid ${i===offIdx?'var(--blue)':'#E0E0E0'};background:${i===offIdx?'var(--blue-l)':'#fff'};color:${i===offIdx?'var(--blue)':'#546E7A'};font-size:13px;font-weight:500;cursor:pointer">${o.name}</button>`).join('');
   else el.innerHTML=offices.map((o,i)=>`<div style="flex-shrink:0;padding:8px 14px;border-radius:20px;border:1.5px solid ${i===offIdx?'var(--blue)':'#E0E0E0'};background:${i===offIdx?'var(--blue-l)':'#fff'};color:${i===offIdx?'var(--blue)':'#546E7A'};font-size:12px;font-weight:500;cursor:pointer" onclick="selOff(${i})">${o.name}</div>`).join('');
+  renderOffMap(pfx);
+}
+// แผนที่สาขาที่เลือก ด้วย Leaflet (OpenStreetMap — ไม่ต้องใช้ API key) + วงกลมรัศมีเช็คอิน
+let offMaps = { d:null, m:null };       // เก็บ instance ของ Leaflet map ต่อ layout
+let leafletIconFixed = false;
+function fixLeafletIcons(){
+  if(leafletIconFixed || typeof L==='undefined') return;
+  // แก้ path รูป marker ของ Leaflet ให้ชี้ไป CDN (กันหมุดหาย)
+  delete L.Icon.Default.prototype._getIconUrl;
+  L.Icon.Default.mergeOptions({
+    iconRetinaUrl:'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon-2x.png',
+    iconUrl:      'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon.png',
+    shadowUrl:    'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
+  });
+  leafletIconFixed = true;
+}
+function renderOffMap(pfx){
+  const el=document.getElementById(`${pfx}-off-map`);if(!el)return;
+  const o=offices[offIdx];
+
+  // ไม่มีสาขา หรือไม่มีพิกัด → ทำลายแผนที่เดิม แล้วแสดงข้อความแทน
+  if(!o || !o.lat || !o.lng){
+    if(offMaps[pfx]){ try{offMaps[pfx].map.remove();}catch(e){} offMaps[pfx]=null; }
+    el.innerHTML = o ? `<div style="background:#FFF7ED;border:1px solid #FED7AA;border-radius:12px;padding:10px 14px;margin-bottom:10px;font-size:12px;color:#9A3412;display:flex;align-items:center;gap:8px">
+      <i class="ti ti-map-pin-off" aria-hidden="true"></i>สาขานี้ยังไม่ได้ตั้งพิกัด GPS — ตั้งค่าได้ที่เมนูจัดการสาขา</div>` : '';
+    return;
+  }
+  if(typeof L==='undefined'){ el.innerHTML='<div style="font-size:12px;color:#9E9E9E;padding:8px">กำลังโหลดแผนที่...</div>'; return; }
+  fixLeafletIcons();
+
+  const lat=Number(o.lat), lng=Number(o.lng), radius=Number(o.radius_m)||100;
+  const gmap=`https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
+  const addrHTML=`<i class="ti ti-map-pin" style="color:#1565C0;flex-shrink:0;margin-top:1px" aria-hidden="true"></i>
+    <span>${o.address||o.name} · <b style="color:#1252A3">รัศมีเช็คอิน ${radius} ม.</b></span>`;
+
+  let inst=offMaps[pfx];
+  if(!inst || !document.getElementById(`${pfx}-leaflet`)){
+    // สร้างโครงสร้าง + แผนที่ใหม่
+    el.innerHTML=`
+      <div style="position:relative;border-radius:12px;overflow:hidden;border:1px solid #E0E0E0;margin-bottom:8px">
+        <div id="${pfx}-leaflet" style="width:100%;height:175px;background:#EAEFF2;z-index:0"></div>
+        <a id="${pfx}-off-gmap" href="${gmap}" target="_blank" rel="noopener noreferrer" style="position:absolute;bottom:8px;right:8px;z-index:500;background:#fff;border:1px solid #E0E0E0;border-radius:8px;padding:5px 9px;font-size:11px;font-weight:500;color:#1565C0;text-decoration:none;box-shadow:0 1px 4px rgba(0,0,0,.18);display:flex;align-items:center;gap:4px">
+          <i class="ti ti-external-link" aria-hidden="true"></i>Google Maps
+        </a>
+      </div>
+      <div id="${pfx}-off-addr" style="font-size:11px;color:#78909C;margin-bottom:10px;display:flex;align-items:flex-start;gap:5px">${addrHTML}</div>`;
+    const map=L.map(`${pfx}-leaflet`,{zoomControl:true,scrollWheelZoom:false,attributionControl:true});
+    map.setView([lat,lng], zoomForRadius(radius));   // ตั้ง view ก่อน เพื่อให้ projection พร้อม
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'}).addTo(map);
+    const marker=L.marker([lat,lng]).addTo(map);
+    const circle=L.circle([lat,lng],{radius,color:'#1252A3',weight:2,fillColor:'#1252A3',fillOpacity:0.15}).addTo(map);
+    inst=offMaps[pfx]={map,marker,circle};
+  } else {
+    // อัปเดตตำแหน่ง marker + วงกลม + ลิงก์ + ที่อยู่
+    inst.marker.setLatLng([lat,lng]);
+    inst.circle.setLatLng([lat,lng]).setRadius(radius);
+    inst.map.setView([lat,lng], zoomForRadius(radius));
+    const a=document.getElementById(`${pfx}-off-gmap`); if(a) a.href=gmap;
+    const ad=document.getElementById(`${pfx}-off-addr`); if(ad) ad.innerHTML=addrHTML;
+  }
+
+  // รีเฟรชขนาด + ซูมให้เห็นวงรัศมีพอดี ตอน container ถูกแสดงจริง
+  setTimeout(()=>{ try{ inst.map.invalidateSize(); inst.map.fitBounds(inst.circle.getBounds(),{padding:[18,18],maxZoom:17}); }catch(e){} }, 150);
+}
+// ระดับซูมโดยประมาณจากรัศมี (เมตร) — รัศมีเล็กซูมเข้า รัศมีใหญ่ซูมออก
+function zoomForRadius(r){
+  const z = Math.round(16 - Math.log2((r||100)/100));
+  return Math.max(13, Math.min(18, z));
 }
 function selOff(i){offIdx=i;renderOffTabs('d');renderOffTabs('m');checkGPS();}
 function initCI(pfx){
@@ -5288,15 +5397,84 @@ function calcTax(monthlySalary, otMonthly=0){
   return Math.round(tax / 12); // หารกลับมาเป็นรายเดือน
 }
 
+// ============================================================
+// สูตรกลางคำนวณเงินเดือน 1 คน (ใช้ร่วมกันทุกที่: payroll, สลิปบนจอ, สลิป PDF)
+// รับข้อมูลที่ดึงมาแล้ว — pure function เพื่อให้ทุกหน้าได้ตัวเลขชุดเดียวกัน
+//   otData : [{ot_date, ot_minutes, ot_rate}]  (approved เดือนนั้น)
+//   attData: [{check_in, check_out}]           (เดือนนั้น)
+//   lvData : [{type, days, status}]            (approved เดือนนั้น)
+//   ws     : work_settings row (object)
+//   dilCheck: ผลจาก checkDiligence()
+// ============================================================
+function calcPaySlip(emp, otData, attData, lvData, ws, dilCheck){
+  const sal           = emp.salary || 0;
+  const workStart     = ws?.work_start || '08:30';
+  const workEnd       = ws?.work_end   || '17:30';
+  const lateAfterMins = ws?.late_after_mins || 0;
+  const lateRate      = ws?.late_deduct_per_min || 1;
+  const dilBonus      = (ws?.diligence_bonus ?? 500);
+  const [wh,wm]       = workStart.split(':').map(Number);
+  const [weh,wem]     = workEnd.split(':').map(Number);
+  const workStartMins = wh*60 + wm + lateAfterMins;
+
+  // attendance ต่อวัน
+  const attByDate = {};
+  (attData||[]).forEach(a => { if(a.check_in) attByDate[a.check_in.slice(0,10)] = a; });
+
+  // OT — คำนวณจาก attendance จริง (ฐาน ÷30÷8) cap ตามที่อนุมัติ
+  let otAmount = 0, otMins = 0;
+  (otData||[]).forEach(ot => {
+    const att = attByDate[ot.ot_date];
+    if(!att || !att.check_out) return;           // ไม่มา / ลืม checkout → ไม่นับ
+    const coTime      = new Date(att.check_out);
+    const workEndTime = new Date(att.check_in);
+    workEndTime.setHours(weh, wem, 0, 0);
+    const actualMins = Math.max(0, Math.round((coTime - workEndTime)/60000));
+    const earnedMins = Math.min(actualMins, ot.ot_minutes||0);
+    if(earnedMins <= 0) return;
+    const hourlyRate = sal/30/8;
+    otAmount += Math.round((earnedMins/60) * hourlyRate * (ot.ot_rate||1.5));
+    otMins   += earnedMins;
+  });
+
+  // หักสาย
+  let lateMins = 0;
+  (attData||[]).forEach(a => {
+    const ci = new Date(a.check_in);
+    lateMins += Math.max(0, ci.getHours()*60 + ci.getMinutes() - workStartMins);
+  });
+  const lateDeduct = Math.round(lateMins * lateRate);
+  const lateDays   = (attData||[]).filter(a => {
+    const ci = new Date(a.check_in);
+    return ci.getHours()*60 + ci.getMinutes() > workStartMins;
+  }).length;
+
+  // หัก unpaid leave
+  const unpaidDays   = (lvData||[]).filter(l => l.type==='unpaid' && l.status==='approved').reduce((s,l)=>s+(l.days||1),0);
+  const unpaidDeduct = Math.round(sal/30 * unpaidDays);
+
+  // เบี้ยขยัน — มีสิทธิ์ + ไม่สาย + ผ่าน diligence check
+  const dilEligible = emp.diligence_eligible!==false && lateMins===0 && (dilCheck?.eligible!==false);
+  const dil         = dilEligible ? dilBonus : 0;
+  const dilReason   = (dilCheck && dilCheck.eligible===false) ? (dilCheck.reason||'') : (lateMins>0 ? 'สาย '+lateMins+' นาที' : '');
+
+  // SSO + ภาษี (otMonthly = otAmount เท่ากันทุกหน้า)
+  const sso = calcSSO(sal, emp.sso_eligible!==false);
+  const tax = calcTax(sal, otAmount);
+  const net = sal + otAmount + dil - sso - tax - lateDeduct - unpaidDeduct;
+
+  return { sal, otAmount, otMins, lateMins, lateDays, lateDeduct, unpaidDeduct, dil, dilReason, sso, tax, net };
+}
+
 async function calcPayroll(){
   const sel = document.getElementById('d-pr-month');
   const [m, y] = (sel?.value||CUR_M+','+CUR_Y).split(',').map(Number);
   const startDate = `${y}-${String(m+1).padStart(2,'0')}-01`;
   const endDate   = new Date(y, m+1, 0).toISOString().slice(0,10);
 
-  // ดึง OT ที่อนุมัติ
+  // ดึง OT ที่อนุมัติ (ต้องมี ot_date, ot_rate ด้วยเพื่อให้คำนวณ OT ได้ถูก)
   const{data: otData} = await db.from('ot_records')
-    .select('employee_id,ot_amount,ot_minutes')
+    .select('employee_id,ot_date,ot_minutes,ot_rate')
     .eq('status','approved')
     .gte('ot_date', startDate)
     .lte('ot_date', endDate);
@@ -5311,13 +5489,7 @@ async function calcPayroll(){
   const{data: ws} = await db.from('work_settings')
     .select('work_start,work_end,late_after_mins,late_deduct_per_min,diligence_bonus')
     .limit(1);
-  const workStart     = ws?.[0]?.work_start || '08:30';
-  const workEnd       = ws?.[0]?.work_end   || '17:30';
-  const lateAfterMins = ws?.[0]?.late_after_mins || 0;
-  const lateRate      = ws?.[0]?.late_deduct_per_min || 1;
-  const dilBonus      = ws?.[0]?.diligence_bonus || 500;
-  const [wh, wm]      = workStart.split(':').map(Number);
-  const workStartMins = wh*60 + wm + lateAfterMins;
+  const settings = ws?.[0] || {};
 
   // ดึง unpaid leaves เดือนนั้น
   const{data: lvData} = await db.from('leaves')
@@ -5327,89 +5499,14 @@ async function calcPayroll(){
     .gte('start_date', startDate)
     .lte('end_date', endDate);
 
-  // คำนวณต่อ employee
+  // คำนวณต่อ employee — ใช้สูตรกลาง calcPaySlip ให้ตรงกับสลิป
   const rows = await Promise.all(emps.map(async e => {
-    const sal = e.salary||0;
-
-    // รวม OT — คำนวณจาก attendance จริง เทียบกับ OT ที่อนุมัติ
-    const myOT = (otData||[]).filter(o=>o.employee_id===e.id);
+    const myOT  = (otData||[]).filter(o=>o.employee_id===e.id);
     const myAtt = (attData||[]).filter(a=>a.employee_id===e.id);
-
-    let otAmount = 0, otMins = 0;
-    myOT.forEach(ot => {
-      // หา attendance วันที่ทำ OT
-      const otDateStr = ot.ot_date; // 'YYYY-MM-DD'
-      const attOnDay  = myAtt.filter(a => a.check_in.startsWith(otDateStr));
-
-      if(!attOnDay.length){
-        // ไม่มีการเช็คอินวันนั้น → OT = 0 (ไม่มา)
-        return;
-      }
-
-      // มีการเช็คอิน — คำนวณชั่วโมง OT จริง
-      const att = attOnDay[0];
-      if(!att.check_out){
-        // ลืม checkout → ไม่นับ OT
-        return;
-      }
-
-      const ciTime  = new Date(att.check_in);
-      const coTime  = new Date(att.check_out);
-
-      // OT เริ่มหลังเวลาเลิกงาน
-      const [weh, wem] = workEnd.split(':').map(Number);
-      const workEndMins = weh*60 + wem;
-      const workEndTime = new Date(ciTime);
-      workEndTime.setHours(Math.floor(workEndMins/60), workEndMins%60, 0, 0);
-
-      // คำนวณ OT จริง (นาที)
-      const actualOTStart = new Date(Math.max(coTime > workEndTime ? workEndTime.getTime() : coTime.getTime(), workEndTime.getTime()));
-      const actualOTMins  = coTime > workEndTime ? Math.round((coTime - workEndTime) / 60000) : 0;
-
-      // จำกัดไม่เกินที่ขออนุมัติ
-      const approvedMins = ot.ot_minutes || 0;
-      const actualMins   = Math.min(actualOTMins, approvedMins);
-
-      if(actualMins <= 0) return;
-
-      // คำนวณค่า OT ตาม rate
-      const hourlyRate = (e.salary || 0) / 30 / 8;
-      const otRate     = ot.ot_rate || 1.5;
-      const earnedOT   = Math.round((actualMins / 60) * hourlyRate * otRate);
-
-      otMins   += actualMins;
-      otAmount += earnedOT;
-    });
-
-    // หักสาย (ย้ายมาหลัง OT calculation ที่ใช้ myAtt แล้ว)
-
-    // หักสาย
-    let lateMins = 0, lateDeduct = 0;
-    myAtt.forEach(a => {
-      const ci = new Date(a.check_in);
-      const ciMins = ci.getHours()*60+ci.getMinutes();
-      const late = Math.max(0, ciMins - workStartMins);
-      lateMins += late;
-    });
-    lateDeduct = Math.round(lateMins * lateRate);
-
-    // หัก unpaid leave
-    const myUnpaidLv = (lvData||[]).filter(l=>l.employee_id===e.id && l.type==='unpaid' && l.status==='approved');
-    const unpaidDays  = myUnpaidLv.reduce((s,l)=>s+(l.days||1),0);
-    const unpaidDeduct= Math.round((e.salary||0)/30 * unpaidDays);
-
-    // เบี้ยขยัน — ตรวจครบ: มีสิทธิ์ + ไม่สาย + ไม่ขาด + ไม่ลืม checkout
+    const myLv  = (lvData||[]).filter(l=>l.employee_id===e.id);
     const dilCheck = await checkDiligence(e.id, y, m);
-    const dil = (e.diligence_eligible!==false && lateMins===0 && dilCheck.eligible) ? dilBonus : 0;
-    const dilReason = !dilCheck.eligible ? dilCheck.reason : (lateMins>0 ? 'สาย '+lateMins+' นาที' : '');
-
-    // SSO + ภาษี (ตามกฎหมายไทย)
-    const sso = calcSSO(sal, e.sso_eligible!==false);
-    const tax = calcTax(sal, otAmount/12*12);  // OT ต่อเดือน
-    const net   = sal + otAmount + dil - sso - tax - lateDeduct - unpaidDeduct;
-
-    const dilReason2 = !dilCheck?.eligible ? (dilCheck?.reason||'') : (lateMins>0 ? 'สาย '+lateMins+' นาที' : '');
-    return { e, sal, otAmount, otMins, lateMins, lateDeduct, dil, dilReason: dilReason2, sso, tax, net, unpaidDeduct: unpaidDeduct||0 };
+    const c = calcPaySlip(e, myOT, myAtt, myLv, settings, dilCheck);
+    return { e, ...c };
   }));
 
   // KPI
@@ -5548,73 +5645,24 @@ async function renderPS(pfx,aId){
 
   area.innerHTML = '<div style="text-align:center;padding:20px;color:#9CA3AF;font-size:12px"><i class="ti ti-loader-2" style="animation:spin 1s linear infinite;font-size:20px"></i><br>กำลังคำนวณ...</div>';
 
-  // ===== ดึง OT =====
-  const{data:otData} = await db.from('ot_records')
-    .select('ot_amount,ot_minutes,day_type,ot_rate')
-    .eq('employee_id', emp.id)
-    .eq('status','approved')
-    .gte('ot_date', startDate)
-    .lte('ot_date', endDate);
-  // ===== ดึง Attendance + work_settings พร้อมกัน =====
-  const{data:ws} = await db.from('work_settings')
-    .select('work_start,work_end,late_after_mins,late_deduct_per_min').limit(1);
-  const workStart     = ws?.[0]?.work_start||'08:30';
-  const workEnd       = ws?.[0]?.work_end||'17:30';
-  const lateAfterMins = ws?.[0]?.late_after_mins||0;
-  const lateRate      = ws?.[0]?.late_deduct_per_min||1;
-  const [wh,wm]       = workStart.split(':').map(Number);
-  const workStartMins = wh*60+wm+lateAfterMins;
+  // ===== ดึงข้อมูลทั้งหมดพร้อมกัน =====
+  const [{data:otData},{data:ws},{data:attData},{data:lvData}] = await Promise.all([
+    db.from('ot_records').select('ot_date,ot_minutes,ot_rate')
+      .eq('employee_id', emp.id).eq('status','approved')
+      .gte('ot_date', startDate).lte('ot_date', endDate),
+    db.from('work_settings').select('work_start,work_end,late_after_mins,late_deduct_per_min,diligence_bonus').limit(1),
+    db.from('attendances').select('check_in,check_out')
+      .eq('employee_id', emp.id)
+      .gte('check_in', startDate+'T00:00:00').lte('check_in', endDate+'T23:59:59'),
+    db.from('leaves').select('type,days,status')
+      .eq('employee_id', emp.id).eq('status','approved').eq('type','unpaid')
+      .gte('start_date', startDate).lte('end_date', endDate),
+  ]);
 
-  const{data:attData} = await db.from('attendances')
-    .select('check_in,check_out')
-    .eq('employee_id', emp.id)
-    .gte('check_in', startDate+'T00:00:00')
-    .lte('check_in', endDate+'T23:59:59');
-
-  // สร้าง attendance map ต่อวัน
-  const attByDate = {};
-  (attData||[]).forEach(a=>{ const d=a.check_in.slice(0,10); attByDate[d]=a; });
-
-  const [weh2,wem2] = workEnd.split(':').map(Number);
-
-  // init OT totals
-  let otAmount=0, otMins=0;
-
-  // คำนวณ OT จาก attendance จริง
-  (otData||[]).forEach(ot=>{
-    const att=attByDate[ot.ot_date];
-    if(!att||!att.check_out) return;
-    const coTime=new Date(att.check_out);
-    const workEndTime=new Date(att.check_in);
-    workEndTime.setHours(weh2,wem2,0,0);
-    const actualMins=Math.max(0,Math.round((coTime-workEndTime)/60000));
-    const earnedMins=Math.min(actualMins,ot.ot_minutes||0);
-    if(earnedMins<=0) return;
-    const hourlyRate=(emp.salary||0)/30/8;
-    otAmount+=Math.round((earnedMins/60)*hourlyRate*(ot.ot_rate||1.5));
-    otMins+=earnedMins;
-  });
-
-  let lateMins=0;
-  (attData||[]).forEach(a=>{
-    const ci=new Date(a.check_in);
-    lateMins+=Math.max(0,ci.getHours()*60+ci.getMinutes()-workStartMins);
-  });
-  const lateDeduct = Math.round(lateMins*lateRate);
-  const lateDays   = (attData||[]).filter(a=>{
-    const ci=new Date(a.check_in);
-    return ci.getHours()*60+ci.getMinutes()>workStartMins;
-  }).length;
-
-  // ===== เบี้ยขยัน — ตรวจครบ =====
+  // ===== คำนวณด้วยสูตรกลาง (ตรงกับ payroll + PDF) =====
   const dilCheck = await checkDiligence(emp.id, y, m);
-  const dil = (emp.diligence_eligible!==false && lateMins===0 && dilCheck.eligible) ? 500 : 0;
-  const dilReason = !dilCheck.eligible ? dilCheck.reason : (lateMins>0 ? 'สาย '+lateMins+' นาที' : '');
-
-  // ===== SSO + ภาษี =====
-  const sso = calcSSO(sal, emp.sso_eligible!==false);
-  const tax = calcTax(sal, otAmount/12);
-  const net = sal + otAmount + dil - sso - tax - lateDeduct;
+  const c = calcPaySlip(emp, otData, attData, lvData, ws?.[0]||{}, dilCheck);
+  const { otAmount, otMins, lateMins, lateDays, lateDeduct, unpaidDeduct, dil, dilReason, sso, tax, net } = c;
 
   const fmt = n => '฿'+Math.round(n).toLocaleString('th-TH');
 
@@ -5653,6 +5701,10 @@ async function renderPS(pfx,aId){
       ${lateDeduct>0?`<div class="ps-row">
         <span style="color:#9A3412">หักสาย (${lateDays} วัน · ${lateMins} นาที)</span>
         <span style="color:#9A3412;font-weight:600">-${fmt(lateDeduct)}</span>
+      </div>`:''}
+      ${unpaidDeduct>0?`<div class="ps-row">
+        <span style="color:#9A3412">ลาไม่รับค่าจ้าง</span>
+        <span style="color:#9A3412;font-weight:600">-${fmt(unpaidDeduct)}</span>
       </div>`:''}
       <div class="ps-row">
         <span>ประกันสังคม (5% เพดาน 17,500)</span>
@@ -6049,9 +6101,9 @@ async function editCheckout(attId, currentTime){
   const newTime = prompt('แก้ไขเวลาออกงาน (HH:MM)', currentTime || '17:30');
   if(!newTime) return;
 
-  // สร้าง full datetime
+  // สร้าง full datetime — แปลงเวลา local เป็น ISO/UTC ให้สอดคล้องกับ check_in (กันคลาดเคลื่อน timezone)
   const dateStr = document.getElementById('att-date-pick')?.value || todayS();
-  const fullDT  = dateStr + 'T' + newTime + ':00';
+  const fullDT  = new Date(dateStr + 'T' + newTime + ':00').toISOString();
 
   const{error} = await db.from('attendances')
     .update({check_out: fullDT})
@@ -6133,7 +6185,8 @@ async function autoCheckoutAll(){
     const selected = [...document.querySelectorAll('.aco-chk:checked')].map(c=>c.value);
     if(!selected.length){ showToast('ไม่ได้เลือกพนักงาน'); return; }
 
-    const checkoutDT = dateStr + 'T' + workEnd + ':00';
+    // แปลงเวลา local เป็น ISO/UTC ให้สอดคล้องกับ check_in (กันคลาดเคลื่อน timezone)
+    const checkoutDT = new Date(dateStr + 'T' + workEnd + ':00').toISOString();
     const{error} = await db.from('attendances')
       .update({check_out: checkoutDT})
       .in('id', selected);
@@ -6415,6 +6468,13 @@ const PERMS = {
   settings:   ['owner','hr_manager'],
   reports:    ['owner','accountant'],
   profile:    '*',
+  // หน้ารายงาน/เข้างาน/ภาพรวม — ค่าเริ่มต้นเฉพาะระดับบริหาร (Owner ปรับรายคนได้ใน Permission Manager)
+  attendance:       ['owner','hr_manager','dept_head','accountant'],
+  'monthly-attend': ['owner','hr_manager','dept_head','accountant'],
+  'leave-report':   ['owner','hr_manager','dept_head','accountant'],
+  'ot-report':      ['owner','hr_manager','dept_head','accountant'],
+  'exec-dashboard': ['owner','hr_manager','dept_head','accountant'],
+  orgchart:         ['owner','hr_manager','dept_head','accountant'],
 };
 
 // actions ละเอียด
@@ -6442,6 +6502,12 @@ const ACTION_PERMS = {
   payslip_all:      ['owner','hr_manager','accountant'],
   salary_view:      ['owner','hr_manager','accountant'],
   export_report:    ['owner','accountant'],
+
+  // รายงาน / เข้างาน / ภาพรวม (ปรับรายคนได้ใน Permission Manager)
+  attendance_view:  ['owner','hr_manager','dept_head','accountant'],
+  report_view:      ['owner','hr_manager','dept_head','accountant'],
+  exec_view:        ['owner','hr_manager','dept_head','accountant'],
+  orgchart_view:    ['owner','hr_manager','dept_head','accountant'],
 
   // ระบบ
   device_view_all:  ['owner','hr_manager'],
@@ -6474,8 +6540,12 @@ const PAGE_ACTION_MAP = {
   payroll:          'payroll_view',
   offices:          'office_manage',
   settings:         'settings_edit',
-  'monthly-attend': 'payroll_view',
-  attendance:       'emp_view_all',
+  attendance:       'attendance_view',
+  'monthly-attend': 'attendance_view',
+  'leave-report':   'report_view',
+  'ot-report':      'report_view',
+  'exec-dashboard': 'exec_view',
+  orgchart:         'orgchart_view',
 };
 
 function canPage(page){
@@ -6505,6 +6575,8 @@ function isAccountant(){ return currentUser?.role === 'accountant'; }
 function canSeeSalary(empId){
   if(!currentUser) return false;
   if(['owner','hr_manager'].includes(currentUser.role)) return true;
+  // custom permission ที่ owner มอบให้ (เช่น ให้ accountant เห็นเงินเดือน)
+  if(myPerms && myPerms.emp_view_salary === true) return true;
   if(empId && empId === currentUser.id) return true;
   return false;
 }
@@ -6835,14 +6907,12 @@ function applyRoleUI(){
     // ข้าม nav-perm-mgr — จัดการแยกต่างหาก
     if(el.id === 'nav-perm-mgr') return;
     const onclick = el.getAttribute('onclick')||'';
-    const page = (onclick.match(/goD\('(\w+)'\)/) || [])[1];
+    // รองรับชื่อหน้าที่มีขีด เช่น exec-dashboard, monthly-attend, leave-report, ot-report
+    const page = (onclick.match(/goD\('([\w-]+)'\)/) || [])[1];
     if(page && !canPage(page)) el.style.display = 'none';
     else el.style.display = '';
   });
-
-  // ===== Executive Dashboard =====
-  const execNav = document.getElementById('nav-exec-dashboard');
-  if(execNav) execNav.style.display = ['owner','hr_manager','dept_head','accountant'].includes(role) ? '' : 'none';
+  // Executive Dashboard ใช้ canPage('exec-dashboard') ผ่าน loop ด้านบนแล้ว (รองรับ custom permission)
 
   // ===== ปุ่มเพิ่มพนักงาน =====
   document.querySelectorAll('[onclick="openAddEmpSheet()"]').forEach(el=>{
@@ -7135,7 +7205,7 @@ async function previewOTRate(){
   // คำนวณเงิน (ถ้า login อยู่)
   let moneyTxt = '';
   if(currentUser?.salary){
-    const hourly = currentUser.salary / 26 / 8;
+    const hourly = currentUser.salary / 30 / 8;   // ฐานเดียวกับตอนจ่ายจริงใน payroll/สลิป
     const amt = Math.round(hourly * rate * (mins/60));
     moneyTxt = ' → <b style="color:#1565C0">฿'+amt.toLocaleString('th-TH')+'</b>';
   }
@@ -7165,7 +7235,7 @@ async function submitOT(){
   const [sh,sm] = start.split(':').map(Number);
   const [eh,em] = end.split(':').map(Number);
   const mins    = (eh*60+em) - (sh*60+sm);
-  const hourly  = (currentUser.salary||0) / 26 / 8;
+  const hourly  = (currentUser.salary||0) / 30 / 8;   // ฐานเดียวกับตอนจ่ายจริงใน payroll/สลิป
   const amount  = Math.round(hourly * rate * (mins/60));
 
   const{error} = await db.from('ot_records').insert({
@@ -7198,20 +7268,26 @@ async function loadOT(){
     .select('*, employees!ot_records_employee_id_fkey(name,first_name,last_name,department,photo_url)')
     .order('ot_date', {ascending:false});
 
-  // พนักงานดูแค่ตัวเอง
-  if(!can('approve_leave')){
+  // owner/hr/accountant เห็นทุกคน · dept_head เห็นแผนกตัวเอง (กรองหลัง fetch) · employee เห็นแค่ตัวเอง
+  if(!can('leave_view_all') && isDeptHead()){
+    // dept_head — filter หลัง fetch ด้านล่าง
+  } else if(!can('leave_approve')){
     query = query.eq('employee_id', currentUser.id);
   }
-  const{data} = await query;
-  otRequests = data || [];
+  let {data} = await query;
+  data = data || [];
+  if(isDeptHead() && !can('leave_view_all')){
+    data = data.filter(o => o.employees?.department === myDept() || o.employee_id === currentUser.id);
+  }
+  otRequests = data;
   renderOT();
   updateOTBadge();
 }
 
 function updateOTBadge(){
   const pend = otRequests.filter(o=>o.status==='pending' && (
-    // HR/owner เห็นทุก pending / dept_head เห็นแผนกตัวเอง / employee ไม่เห็น badge
-    can('approve_leave') ? true : false
+    // HR/owner เห็นทุก pending / dept_head เห็นแผนกตัวเอง (otRequests กรองแล้ว) / employee ไม่เห็น badge
+    can('leave_approve') ? true : false
   ));
   // อัปเดต badge ใน nav (desktop + mobile)
   ['d-ot-badge','m-ot-badge'].forEach(id => {
@@ -7341,6 +7417,8 @@ async function renderOT(){
 
 async function approveOT(id){
   const o = otRequests.find(x=>x.id===id);
+  if(!can('leave_approve')){ showToast('ไม่มีสิทธิ์อนุมัติ OT'); return; }
+  if(o?.employee_id === currentUser?.id){ showToast('ไม่สามารถอนุมัติ OT ของตัวเองได้'); return; }
   const name = o?.employees?.first_name || o?.employees?.name || 'พนักงาน';
   showConfirm({
     icon: '⏰', iconBg: '#D1FAE5', iconColor: '#065F46',
@@ -7348,6 +7426,7 @@ async function approveOT(id){
     msg: `<b>${name}</b><br>${o?.ot_date||''} · ${(o?.start_time||'').slice(0,5)} – ${(o?.end_time||'').slice(0,5)}<br>เงิน OT <b style="color:#1252A3">฿${(o?.ot_amount||0).toLocaleString('th-TH')}</b>`,
     okText: 'อนุมัติ OT', okColor: '#1A6B2E',
     onOk: async () => {
+      if(!can('leave_approve') || o?.employee_id === currentUser?.id){ showToast('ไม่มีสิทธิ์อนุมัติ OT'); return; }
       const{error} = await db.from('ot_records').update({status:'approved'}).eq('id',id);
       if(error){ showToast('เกิดข้อผิดพลาด'); return; }
       showToast('อนุมัติ OT แล้ว ✅'); await loadOT();
@@ -7357,6 +7436,8 @@ async function approveOT(id){
 
 async function rejectOT(id){
   const o = otRequests.find(x=>x.id===id);
+  if(!can('leave_approve')){ showToast('ไม่มีสิทธิ์ปฏิเสธ OT'); return; }
+  if(o?.employee_id === currentUser?.id){ showToast('ไม่สามารถปฏิเสธ OT ของตัวเองได้'); return; }
   const name = o?.employees?.first_name || o?.employees?.name || 'พนักงาน';
   showConfirm({
     icon: '🚫', iconBg: '#FEE2E2', iconColor: '#991B1B',
@@ -7364,6 +7445,7 @@ async function rejectOT(id){
     msg: `<b>${name}</b><br>${o?.ot_date||''} · ${(o?.start_time||'').slice(0,5)} – ${(o?.end_time||'').slice(0,5)}`,
     okText: 'ปฏิเสธ', okColor: '#B91C1C',
     onOk: async () => {
+      if(!can('leave_approve') || o?.employee_id === currentUser?.id){ showToast('ไม่มีสิทธิ์ปฏิเสธ OT'); return; }
       const{error} = await db.from('ot_records').update({status:'rejected'}).eq('id',id);
       if(error){ showToast('เกิดข้อผิดพลาด'); return; }
       showToast('ปฏิเสธ OT แล้ว'); await loadOT();
@@ -7503,17 +7585,21 @@ function renderOrgChart(){
 // ============================================================
 // PERMISSION MANAGER (Owner Only)
 // ============================================================
+// key ต้องตรงกับที่ can()/canPage() อ่านจาก myPerms (ACTION_PERMS / PAGE_ACTION_MAP) ไม่งั้น toggle จะไม่มีผล
 const PERM_LABELS = {
-  view_salary:      { label:'เห็นเงินเดือนคนอื่น',    icon:'ti-cash',          warn:true },
-  view_all_emp:     { label:'เห็นรายชื่อพนักงานทุกคน', icon:'ti-users',          warn:false },
-  edit_emp:         { label:'แก้ไขข้อมูลพนักงาน',      icon:'ti-edit',           warn:true },
-  approve_leave:    { label:'อนุมัติ/ปฏิเสธใบลา',      icon:'ti-check',          warn:false },
-  view_payroll:     { label:'ดู Payroll รวมทั้งบริษัท', icon:'ti-report-money',  warn:true },
-  view_all_payslip: { label:'ดูสลิปเงินเดือนทุกคน',   icon:'ti-receipt',        warn:true },
+  emp_view_salary:  { label:'เห็นเงินเดือนคนอื่น',    icon:'ti-cash',          warn:true },
+  emp_view_all:     { label:'เห็นรายชื่อพนักงานทุกคน', icon:'ti-users',          warn:false },
+  emp_edit:         { label:'แก้ไขข้อมูลพนักงาน',      icon:'ti-edit',           warn:true },
+  leave_approve:    { label:'อนุมัติ/ปฏิเสธใบลา',      icon:'ti-check',          warn:false },
+  payroll_view:     { label:'ดู Payroll รวมทั้งบริษัท', icon:'ti-report-money',  warn:true },
+  payslip_all:      { label:'ดูสลิปเงินเดือนทุกคน',   icon:'ti-receipt',        warn:true },
   export_report:    { label:'Export รายงานการเงิน',     icon:'ti-download',      warn:false },
-  manage_offices:   { label:'จัดการสาขา/GPS',          icon:'ti-map-pin',        warn:false },
-  manage_settings:  { label:'ตั้งค่าระบบ',              icon:'ti-settings',       warn:true },
-  manage_users:     { label:'จัดการ Username/Password', icon:'ti-key',            warn:true },
+  attendance_view:  { label:'ดูการเข้างาน (รายวัน+รายเดือน)', icon:'ti-calendar-stats', warn:false },
+  report_view:      { label:'ดูรายงาน (ลา + OT)',       icon:'ti-report',         warn:false },
+  exec_view:        { label:'ดู Executive Dashboard',    icon:'ti-chart-bar',      warn:true },
+  orgchart_view:    { label:'ดู Org Chart',              icon:'ti-sitemap',        warn:false },
+  office_manage:    { label:'จัดการสาขา/GPS',          icon:'ti-map-pin',        warn:false },
+  settings_edit:    { label:'ตั้งค่าระบบ',              icon:'ti-settings',       warn:true },
 };
 
 let editingEmpId = null;
