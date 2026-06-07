@@ -553,7 +553,7 @@ input[type=file]{display:none}
       <div class="nav-item" onclick="goD('ot-report')"><i class="ti ti-clock-bolt" aria-hidden="true"></i>รายงาน OT</div>
 
       <div class="nav-grp">การเงิน</div>
-      <div class="nav-item" onclick="goD('payroll')"><i class="ti ti-cash" aria-hidden="true"></i>เงินเดือน</div>
+      <div class="nav-item" onclick="goD('payroll')"><i class="ti ti-file-export" aria-hidden="true"></i>สรุปส่ง FlowAccount</div>
       <div class="nav-item" onclick="goD('payslip')"><i class="ti ti-receipt" aria-hidden="true"></i>สลิปเงินเดือน</div>
       <div class="nav-grp">องค์กร</div>
       <div class="nav-item" onclick="goD('orgchart')"><i class="ti ti-sitemap" aria-hidden="true"></i>Org Chart</div>
@@ -1088,17 +1088,20 @@ input[type=file]{display:none}
         </div>
       </div>
 
-      <!-- PAYROLL -->
+      <!-- PAYROLL → สรุปส่ง FlowAccount -->
       <div id="dp-payroll" class="page">
-        <div class="kpi-grid kpi-d" id="d-pr-kpi" style="margin-bottom:16px"></div>
-        <div class="card" style="padding:0;overflow:hidden">
-          <div style="padding:14px;border-bottom:.5px solid #EBEBEB;display:flex;gap:10px;align-items:center">
-            <select class="f-inp f-sel" id="d-pr-month" style="width:200px" onchange="renderPayrollTable()"></select>
-            <button class="btn-p" onclick="showToast('ประมวลผลเงินเดือนสำเร็จ')"><i class="ti ti-calculator" aria-hidden="true"></i>ประมวลผล</button>
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:12px;flex-wrap:wrap">
+          <div style="min-width:0">
+            <div style="font-size:15px;font-weight:700;color:#1A2332;display:flex;align-items:center;gap:6px"><i class="ti ti-file-export" style="color:#1252A3" aria-hidden="true"></i>สรุปส่ง FlowAccount</div>
+            <div style="font-size:11px;color:#8A95A3;margin-top:2px">ตัวเลข OT · มาสาย · ขาด · ลา สำหรับกรอกเข้า FlowAccount (กดปุ่ม <i class="ti ti-copy" style="font-size:11px"></i> เพื่อคัดลอก)</div>
           </div>
-          <table class="emp-table"><thead><tr><th>พนักงาน</th><th>แผนก</th><th>เงินเดือน</th><th style="color:#92400E">OT</th><th style="color:#065F46">เบี้ยขยัน</th><th style="color:var(--red)">หักสาย</th><th>SSO</th><th>ภาษี</th><th style="color:#059669">ก่อนหักสาย</th><th style="color:#1D4ED8">หลังหักสาย</th><th>สลิป</th></tr></thead>
-          <tbody id="d-pr-tbody"></tbody></table>
+          <div style="display:flex;gap:8px;align-items:center;flex-shrink:0">
+            <select class="f-inp f-sel" id="d-pr-month" style="width:150px" onchange="renderPayrollTable()"></select>
+            <button class="btn-p" onclick="exportPayrollExcel()"><i class="ti ti-file-spreadsheet" aria-hidden="true"></i>Export Excel</button>
+          </div>
         </div>
+        <div class="kpi-grid kpi-d" id="d-pr-kpi" style="margin-bottom:14px"></div>
+        <div id="d-pr-cards"></div>
       </div>
 
       <!-- PAYSLIP -->
@@ -1743,6 +1746,7 @@ const MOODS={
 // STATE
 // ============================================================
 let emps=[],offices=[],leaves=[];
+let prRows=[],prMonth=CUR_M,prYear=CUR_Y;   // เก็บผลคำนวณสรุป FlowAccount ไว้ใช้ตอน export
 let ciState={d:'ready',m:'ready'},ciTime={d:null,m:null};
 let offIdx=0,calM=CUR_M,calY=CUR_Y,bdayM=CUR_M;
 let photoTarget=null,newEmpPhoto=null,workTimer=null;
@@ -1805,7 +1809,7 @@ function goD(p){
   const pg=document.getElementById('dp-'+p);if(pg)pg.classList.add('show');
   document.querySelectorAll('.nav-item').forEach(e=>e.classList.remove('act'));
   const ni=document.querySelector(`.nav-item[onclick*="'${p}'"]`);if(ni)ni.classList.add('act');
-  const t={dashboard:'Dashboard',employees:'ข้อมูลพนักงาน',checkin:'เช็คอิน / เวลา',leave:'การลา',payroll:'เงินเดือน',payslip:'สลิปเงินเดือน',offices:'จัดการสาขา',settings:'ตั้งค่า',profile:'โปรไฟล์'};
+  const t={dashboard:'Dashboard',employees:'ข้อมูลพนักงาน',checkin:'เช็คอิน / เวลา',leave:'การลา',payroll:'สรุปส่ง FlowAccount',payslip:'สลิปเงินเดือน',offices:'จัดการสาขา',settings:'ตั้งค่า',profile:'โปรไฟล์'};
   document.getElementById('d-title').textContent=t[p]||p;
   document.getElementById('d-content').scrollTo(0,0);
   if(p==='checkin'){initCI('d');loadTeamAttend();loadTodayCheckIn();}
@@ -1991,91 +1995,50 @@ function renderAgeBars(){
 // ============================================================
 async function exportPayrollExcel(){
   if(!window.XLSX){ showToast('กำลังโหลด Excel library...'); return; }
-  const sel = document.getElementById('d-pr-month');
-  const [m,y] = (sel?.value||CUR_M+','+CUR_Y).split(',').map(Number);
-  const monthLabel = MTH_F[m]+' '+y;
+  if(!prRows.length){ showToast('ยังไม่มีข้อมูล — เลือกเดือนก่อน'); return; }
+  const m = prMonth, y = prYear, monthLabel = MTH_F[m]+' '+y;
   showToast('กำลังสร้าง Excel...');
 
-  const wb = XLSX.utils.book_new();
+  const hdr = ['รหัส','ชื่อ-นามสกุล','แผนก','เงินเดือน',
+    'OT (ชม.)','OT (บาท)','OT×1.5 (ชม.)','OT×1.5 (บาท)','OT×3 (ชม.)','OT×3 (บาท)',
+    'เบี้ยขยัน (บาท)','มาสาย (ครั้ง)','มาสาย (นาที)','หักสาย (บาท)',
+    'ขาดงาน (วัน)','หักขาด (บาท)','ลาไม่รับค่าจ้าง (วัน)','หักลา (บาท)',
+    'อ้างอิง: ปกส.','อ้างอิง: ภาษี','อ้างอิง: สุทธิ'];
 
-  // === Sheet 1: Payroll รวม ===
-  const payrollRows = [
-    ['สลิปเงินเดือน', monthLabel, '', '', '', '', '', '', '', ''],
+  const aoa = [
+    ['สรุปส่ง FlowAccount', monthLabel],
     ['บริษัท โฟลว์ เอ็นจิเนียริ่ง แอนด์ เซอร์วิส จำกัด'],
+    ['เงินได้: OT, เบี้ยขยัน  |  เงินหัก: หักสาย, หักขาด, หักลา  |  คอลัมน์ "อ้างอิง" FlowAccount คำนวณเอง'],
     [],
-    ['รหัส','ชื่อ-นามสกุล','แผนก','ตำแหน่ง','เงินเดือน','OT','เบี้ยขยัน','หักสาย','ประกันสังคม','ภาษี','รับสุทธิ']
+    hdr
   ];
 
-  rows.forEach(r => {
-    const e = r.e;
-    payrollRows.push([
-      e.employee_code||'',
-      (e.first_name||e.name||'')+(e.last_name?' '+e.last_name:''),
-      e.department||'',
-      e.position||'',
-      r.sal, r.otAmount, r.dil,
-      -r.lateDeduct, -r.sso, -r.tax,
-      Math.round(r.net)
+  const byRate = r => { const o=r.otByRate||{}; const g=k=>o[k]||{mins:0,amount:0};
+    return { h15:Math.round(g(1.5).mins/60*10)/10, a15:g(1.5).amount, h3:Math.round(g(3).mins/60*10)/10, a3:g(3).amount }; };
+
+  prRows.forEach(r => {
+    const e=r.e, b=byRate(r);
+    aoa.push([
+      e.employee_code||'', (e.first_name||e.name||'')+(e.last_name?' '+e.last_name:''), e.department||'', r.sal,
+      Math.round(r.otMins/60*10)/10, r.otAmount, b.h15, b.a15, b.h3, b.a3,
+      r.dil, r.lateDays, r.lateMins, r.lateDeduct,
+      r.absentDays, r.absentDeduct, r.unpaidDays, r.unpaidDeduct,
+      Math.round(r.sso), Math.round(r.tax), Math.round(r.net)
     ]);
   });
 
-  // รวม
-  payrollRows.push([]);
-  payrollRows.push(['','','','','รวม',
-    rows.reduce((s,r)=>s+r.sal,0),
-    rows.reduce((s,r)=>s+r.otAmount,0),
-    rows.reduce((s,r)=>s+r.dil,0),
-    -rows.reduce((s,r)=>s+r.lateDeduct,0),
-    -rows.reduce((s,r)=>s+r.sso,0),
-    -rows.reduce((s,r)=>s+r.tax,0),
-    rows.reduce((s,r)=>s+Math.round(r.net),0)
-  ]);
+  const sum = f => prRows.reduce((s,r)=>s+f(r),0);
+  aoa.push([]);
+  aoa.push(['','รวม','','', '', sum(r=>r.otAmount),'','','','',
+    sum(r=>r.dil),'','',sum(r=>r.lateDeduct),
+    sum(r=>r.absentDays),sum(r=>r.absentDeduct),sum(r=>r.unpaidDays),sum(r=>r.unpaidDeduct),
+    sum(r=>Math.round(r.sso)),sum(r=>Math.round(r.tax)),sum(r=>Math.round(r.net))]);
 
-  const ws1 = XLSX.utils.aoa_to_sheet(payrollRows);
-  ws1['!cols'] = [{wch:10},{wch:25},{wch:15},{wch:20},{wch:12},{wch:10},{wch:10},{wch:10},{wch:12},{wch:10},{wch:12}];
-  XLSX.utils.book_append_sheet(wb, ws1, 'Payroll');
-
-  // === Sheet 2: ประกันสังคม (สปส.) ===
-  const ssoRows = [
-    ['แบบนำส่งเงินสมทบประกันสังคม', monthLabel],
-    ['บริษัท โฟลว์ เอ็นจิเนียริ่ง แอนด์ เซอร์วิส จำกัด'],
-    [],
-    ['ลำดับ','รหัส','ชื่อ-นามสกุล','เลขบัตรประชาชน','ฐานค่าจ้าง','ส่วนลูกจ้าง 5%','ส่วนนายจ้าง 5%','รวม']
-  ];
-  rows.filter(r=>r.e.sso_eligible!==false).forEach((r,i) => {
-    const e=r.e;
-    const base = Math.min(Math.max(r.sal,1650),17500);
-    const emp5 = Math.round(base*0.05);
-    ssoRows.push([i+1, e.employee_code||'', (e.first_name||e.name||'')+(e.last_name?' '+e.last_name:''), e.national_id||'', base, emp5, emp5, emp5*2]);
-  });
-  const totalBase = rows.filter(r=>r.e.sso_eligible!==false).reduce((s,r)=>s+Math.min(Math.max(r.sal,1650),17500),0);
-  const totalSSO  = rows.filter(r=>r.e.sso_eligible!==false).reduce((s,r)=>s+r.sso,0);
-  ssoRows.push([]);
-  ssoRows.push(['','','','รวม', totalBase, totalSSO, totalSSO, totalSSO*2]);
-
-  const ws2 = XLSX.utils.aoa_to_sheet(ssoRows);
-  ws2['!cols'] = [{wch:6},{wch:10},{wch:25},{wch:15},{wch:12},{wch:12},{wch:12},{wch:10}];
-  XLSX.utils.book_append_sheet(wb, ws2, 'ประกันสังคม (สปส.)');
-
-  // === Sheet 3: ภาษีหัก ณ ที่จ่าย ===
-  const taxRows = [
-    ['ภาษีหัก ณ ที่จ่าย (ภ.ง.ด.1)', monthLabel],
-    ['บริษัท โฟลว์ เอ็นจิเนียริ่ง แอนด์ เซอร์วิส จำกัด'],
-    [],
-    ['ลำดับ','รหัส','ชื่อ-นามสกุล','เลขบัตรประชาชน','เงินได้','ภาษีที่หัก']
-  ];
-  rows.filter(r=>r.tax>0).forEach((r,i) => {
-    const e=r.e;
-    taxRows.push([i+1, e.employee_code||'', (e.first_name||e.name||'')+(e.last_name?' '+e.last_name:''), e.national_id||'', r.sal+r.otAmount, Math.round(r.tax)]);
-  });
-  taxRows.push([]);
-  taxRows.push(['','','','รวม', rows.reduce((s,r)=>s+r.sal+r.otAmount,0), rows.reduce((s,r)=>s+Math.round(r.tax),0)]);
-
-  const ws3 = XLSX.utils.aoa_to_sheet(taxRows);
-  ws3['!cols'] = [{wch:6},{wch:10},{wch:25},{wch:15},{wch:12},{wch:12}];
-  XLSX.utils.book_append_sheet(wb, ws3, 'ภาษีหัก ณ ที่จ่าย');
-
-  XLSX.writeFile(wb, `Payroll_${MTH_F[m]}_${y}.xlsx`);
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws['!cols'] = hdr.map((h,i)=>({wch: i===1?24:(i===2?14:13)}));
+  XLSX.utils.book_append_sheet(wb, ws, 'FlowAccount');
+  XLSX.writeFile(wb, `FlowAccount_${MTH_F[m]}_${y}.xlsx`);
   showToast('Export Excel สำเร็จ ✅');
 }
 
@@ -2437,7 +2400,7 @@ const M_MENU_ITEMS = [
   {icon:'ti-table',            label:'สรุปรายเดือน',     page:'monthly-attend'},
   {icon:'ti-calendar-check',   label:'รายงานลา',         page:'leave-report'},
   {icon:'ti-clock-bolt',       label:'รายงาน OT',        page:'ot-report'},
-  {icon:'ti-cash',             label:'เงินเดือน',         page:'payroll'},
+  {icon:'ti-file-export',      label:'สรุป FlowAccount',  page:'payroll'},
   {icon:'ti-receipt',          label:'สลิป',              page:'payslip'},
   {icon:'ti-sitemap',          label:'Org Chart',        page:'orgchart'},
   {icon:'ti-shield-check',     label:'สิทธิ์',            page:'perm-mgr', roles:['owner']},
@@ -5434,6 +5397,7 @@ function calcPaySlip(emp, otData, attData, lvData, ws, dilCheck){
 
   // OT — คำนวณจาก attendance จริง (ฐาน ÷30÷8) cap ตามที่อนุมัติ
   let otAmount = 0, otMins = 0;
+  const otByRate = {};   // แยกตามเรท เช่น {1.5:{mins,amount}, 3:{mins,amount}}
   (otData||[]).forEach(ot => {
     const att = attByDate[ot.ot_date];
     if(!att || !att.check_out) return;           // ไม่มา / ลืม checkout → ไม่นับ
@@ -5444,8 +5408,13 @@ function calcPaySlip(emp, otData, attData, lvData, ws, dilCheck){
     const earnedMins = Math.min(actualMins, ot.ot_minutes||0);
     if(earnedMins <= 0) return;
     const hourlyRate = sal/30/8;
-    otAmount += Math.round((earnedMins/60) * hourlyRate * (ot.ot_rate||1.5));
+    const rate = ot.ot_rate||1.5;
+    const amt  = Math.round((earnedMins/60) * hourlyRate * rate);
+    otAmount += amt;
     otMins   += earnedMins;
+    if(!otByRate[rate]) otByRate[rate] = {mins:0, amount:0};
+    otByRate[rate].mins   += earnedMins;
+    otByRate[rate].amount += amt;
   });
 
   // หักสาย
@@ -5474,7 +5443,7 @@ function calcPaySlip(emp, otData, attData, lvData, ws, dilCheck){
   const tax = calcTax(sal, otAmount);
   const net = sal + otAmount + dil - sso - tax - lateDeduct - unpaidDeduct;
 
-  return { sal, otAmount, otMins, lateMins, lateDays, lateDeduct, unpaidDeduct, dil, dilReason, sso, tax, net };
+  return { sal, otAmount, otMins, otByRate, lateMins, lateDays, lateDeduct, unpaidDeduct, dil, dilReason, sso, tax, net };
 }
 
 async function calcPayroll(){
@@ -5510,6 +5479,13 @@ async function calcPayroll(){
     .gte('start_date', startDate)
     .lte('end_date', endDate);
 
+  // วันทำงานของเดือน + ลาอนุมัติทุกประเภท (เพื่อคำนวณ "ขาดงาน")
+  const workDays = await getWorkDays(y, m);
+  const{data: allLv} = await db.from('leaves')
+    .select('employee_id,start_date,end_date,status')
+    .eq('status','approved')
+    .lte('start_date', endDate).gte('end_date', startDate);
+
   // คำนวณต่อ employee — ใช้สูตรกลาง calcPaySlip ให้ตรงกับสลิป
   const rows = await Promise.all(emps.map(async e => {
     const myOT  = (otData||[]).filter(o=>o.employee_id===e.id);
@@ -5517,22 +5493,38 @@ async function calcPayroll(){
     const myLv  = (lvData||[]).filter(l=>l.employee_id===e.id);
     const dilCheck = await checkDiligence(e.id, y, m);
     const c = calcPaySlip(e, myOT, myAtt, myLv, settings, dilCheck);
-    return { e, ...c };
+
+    // ขาดงาน = วันทำงานที่ไม่มี scan และไม่มีลาอนุมัติใดๆ
+    const attDates = new Set(myAtt.map(a=>a.check_in.slice(0,10)));
+    const leaveDates = new Set();
+    (allLv||[]).filter(l=>l.employee_id===e.id).forEach(l=>{
+      for(let d=new Date(l.start_date); d<=new Date(l.end_date); d.setDate(d.getDate()+1)){
+        leaveDates.add(`${d.getFullYear()}-${p2(d.getMonth()+1)}-${p2(d.getDate())}`);
+      }
+    });
+    const absentDays   = workDays.filter(d=>!attDates.has(d) && !leaveDates.has(d)).length;
+    const absentDeduct = Math.round((e.salary||0)/30 * absentDays);
+    const unpaidDays   = myLv.reduce((s,l)=>s+(l.days||1),0);
+
+    return { e, ...c, absentDays, absentDeduct, unpaidDays };
   }));
 
-  // KPI
+  // เก็บไว้ใช้ตอน Export
+  prRows = rows; prMonth = m; prYear = y;
+
+  // KPI — เน้นตัวเลขที่ต้องส่ง FlowAccount
   const eligible = rows.filter(r=>r.e.is_active);
-  const totalSal  = eligible.reduce((s,r)=>s+r.sal,0);
-  const totalOT   = eligible.reduce((s,r)=>s+r.otAmount,0);
-  const totalDil  = eligible.reduce((s,r)=>s+r.dil,0);
-  const totalNet  = eligible.reduce((s,r)=>s+r.net,0);
+  const totalOT     = eligible.reduce((s,r)=>s+r.otAmount,0);
+  const totalDil    = eligible.reduce((s,r)=>s+r.dil,0);
+  const totalLate   = eligible.reduce((s,r)=>s+r.lateDeduct,0);
+  const totalAbsLv  = eligible.reduce((s,r)=>s+r.absentDeduct+r.unpaidDeduct,0);
 
   const kpi = document.getElementById('d-pr-kpi');
   if(kpi) kpi.innerHTML = [
-    {n:'฿'+Math.round(totalSal).toLocaleString('th-TH'),  l:'เงินเดือนรวม',  ic:'ti-cash',         bg:'#E3F2FD',col:'#1565C0'},
-    {n:'฿'+Math.round(totalOT).toLocaleString('th-TH'),   l:'OT รวม',         ic:'ti-clock-bolt',   bg:'#FEF3C7',col:'#92400E'},
-    {n:'฿'+Math.round(totalDil).toLocaleString('th-TH'),  l:'เบี้ยขยัน',      ic:'ti-star',         bg:'#D1FAE5',col:'#065F46'},
-    {n:'฿'+Math.round(totalNet).toLocaleString('th-TH'),  l:'จ่ายสุทธิรวม',  ic:'ti-report-money', bg:'#DBEAFE',col:'#1D4ED8'},
+    {n:'฿'+Math.round(totalOT).toLocaleString('th-TH'),   l:'OT รวม (เงินได้)',  ic:'ti-clock-bolt',   bg:'#FEF3C7',col:'#92400E'},
+    {n:'฿'+Math.round(totalDil).toLocaleString('th-TH'),  l:'เบี้ยขยัน (เงินได้)', ic:'ti-star',        bg:'#D1FAE5',col:'#065F46'},
+    {n:'฿'+Math.round(totalLate).toLocaleString('th-TH'), l:'หักสาย (เงินหัก)',  ic:'ti-clock-x',      bg:'#FEE2E2',col:'#B91C1C'},
+    {n:'฿'+Math.round(totalAbsLv).toLocaleString('th-TH'),l:'หักขาด+ลา (เงินหัก)', ic:'ti-user-x',     bg:'#FEE2E2',col:'#B91C1C'},
   ].map(k=>`<div class="kpi-tile">
     <div class="kpi-ico" style="background:${k.bg};width:42px;height:42px;font-size:21px">
       <i class="ti ${k.ic}" style="color:${k.col}" aria-hidden="true"></i>
@@ -5540,61 +5532,86 @@ async function calcPayroll(){
     <div><div class="kpi-num" style="font-size:18px">${k.n}</div><div class="kpi-lbl">${k.l}</div></div>
   </div>`).join('');
 
-  // ตาราง
-  const tbody = document.getElementById('d-pr-tbody');
-  if(!tbody) return;
-  tbody.innerHTML = rows.map(({e,sal,otAmount,otMins,lateMins,lateDeduct,dil,dilReason,sso,tax,net,unpaidDeduct}) => {
-    const canSee = canSeeSalary(e.id);
-    const fmt = n => canSee ? '฿'+Math.round(n).toLocaleString('th-TH') : '—';
-    return `<tr>
-      <td>
-        <div style="display:flex;align-items:center;gap:10px">
-          ${avHTML(e,34,false)}
-          <div>
-            <div style="font-weight:500">${e.first_name||e.name||'—'} ${e.last_name||''}</div>
-            <div style="font-size:10px;color:#9E9E9E">${e.employee_code||''}</div>
-          </div>
-        </div>
-      </td>
-      <td><span class="badge ${DEPT_CLS[e.department]||'b-blue'}">${e.department||'—'}</span></td>
-      <td>${fmt(sal)}</td>
-      <td style="color:#92400E;font-weight:${otAmount>0?'600':'400'}">
-        ${canSee && otAmount>0 ? '+฿'+Math.round(otAmount).toLocaleString('th-TH')+'<div style="font-size:9px;color:#9E9E9E">'+Math.round(otMins/60*10)/10+' ชม.</div>' : canSee?'—':'—'}
-      </td>
-      <td>
-        ${e.diligence_eligible===false
-          ? '<span style="color:#9CA3AF;font-size:11px">ไม่มีสิทธิ์</span>'
-          : dil>0
-            ? `<span style="color:#065F46;font-weight:600">+฿${dil}</span>`
-            : `<span style="color:#9A3412;font-size:11px">ไม่ได้รับ${dilReason?' · '+dilReason:''}</span>`}
-      </td>
-      <td>
-        ${canSee && lateDeduct>0
-          ? `<button onclick="showLateDetail('${e.id}',${m},${y})"
-              style="background:#FFF1F1;border:1px solid #FEE2E2;border-radius:8px;padding:5px 10px;cursor:pointer;font-family:inherit;text-align:left;display:block">
-              <div style="color:#9A3412;font-weight:700;font-size:13px">-฿${lateDeduct.toLocaleString('th-TH')}</div>
-              <div style="font-size:9px;color:#9A3412">${lateMins} นาที · ดูรายละเอียด 🔍</div>
-            </button>`
-          : `<span style="color:#9CA3AF">${canSee?'—':'—'}</span>`}
-      </td>
-      <td style="color:var(--red)">${fmt(sso)}</td>
-      <td style="color:var(--red)">${fmt(tax)}</td>
-      <td style="font-weight:600;color:#059669">${canSee ? fmt(net+lateDeduct) : '—'}</td>
-      <td style="font-weight:700;color:#1D4ED8;font-size:14px">${canSee ? fmt(net) : '—'}${lateDeduct>0&&canSee ? '<div style="font-size:9px;color:#9A3412">-'+fmt(lateDeduct)+'</div>' : ''}</td>
-      <td>
-        <div style="display:flex;gap:4px">
-          <button onclick="gotoPayslip('${e.id}')"
-            style="padding:5px 10px;border:1px solid var(--border);border-radius:7px;background:#fff;font-size:12px;cursor:pointer;color:#1565C0;display:flex;align-items:center;gap:4px">
-            <i class="ti ti-receipt" aria-hidden="true"></i>ดู
-          </button>
-          <button onclick="downloadPayslipPDF('${e.id}',${m},${y})"
-            style="padding:5px 10px;border:1px solid #D1FAE5;border-radius:7px;background:#F0FDF4;font-size:12px;cursor:pointer;color:#065F46;display:flex;align-items:center;gap:4px">
-            <i class="ti ti-download" aria-hidden="true"></i>PDF
-          </button>
-        </div>
-      </td>
-    </tr>`;
-  }).join('');
+  // การ์ดสรุปต่อคน (พร้อมปุ่มคัดลอกแต่ละค่า)
+  const wrap = document.getElementById('d-pr-cards');
+  if(!wrap) return;
+  const visible = rows.filter(r=>canSeeSalary(r.e.id));
+  wrap.innerHTML = visible.length
+    ? visible.map(r=>faCardHTML(r, m, y)).join('')
+    : '<div style="text-align:center;color:#B0BEC5;padding:30px;font-size:13px">ไม่มีข้อมูล หรือไม่มีสิทธิ์ดูเงินเดือน</div>';
+}
+
+// คัดลอกค่าไปคลิปบอร์ด (สำหรับ paste เข้า FlowAccount)
+function copyVal(val, label){
+  const s = String(val);
+  const ok = ()=>showToast('คัดลอก '+(label?label+' ':'')+s+' ✅');
+  if(navigator.clipboard?.writeText){
+    navigator.clipboard.writeText(s).then(ok).catch(()=>fallbackCopy(s,ok));
+  } else fallbackCopy(s,ok);
+}
+function fallbackCopy(s, ok){
+  const ta=document.createElement('textarea');
+  ta.value=s; ta.style.position='fixed'; ta.style.opacity='0';
+  document.body.appendChild(ta); ta.focus(); ta.select();
+  try{ document.execCommand('copy'); ok(); }catch(e){ showToast('คัดลอกไม่สำเร็จ'); }
+  document.body.removeChild(ta);
+}
+
+// การ์ดสรุป 1 คน สำหรับกรอก FlowAccount
+function faCardHTML(r, m, y){
+  const {e,sal,otAmount,otMins,otByRate,lateDays,lateMins,lateDeduct,absentDays,absentDeduct,unpaidDays,unpaidDeduct,dil,dilReason,sso,tax,net} = r;
+  const baht = n=>Math.round(n).toLocaleString('th-TH');
+  const otHrs = Math.round(otMins/60*10)/10;
+  const name = (e.first_name||e.name||'—')+(e.last_name?' '+e.last_name:'');
+  // ปุ่มคัดลอก
+  const cp = (val,label)=>`<button onclick="copyVal('${val}','${label}')" title="คัดลอก ${label}" style="border:1px solid #D7DDE5;background:#fff;border-radius:7px;padding:3px 8px;font-size:11px;cursor:pointer;color:#1565C0;display:inline-flex;align-items:center;gap:3px;font-family:inherit;flex-shrink:0"><i class="ti ti-copy" style="font-size:12px" aria-hidden="true"></i>${label}</button>`;
+  // แถวรายการ: ป้าย + ค่า + ปุ่มคัดลอก
+  const lineIncome = (label, detail, copies)=>`<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px dashed #F0F2F5">
+    <div style="flex:1;min-width:0"><div style="font-size:12.5px;color:#334155;font-weight:500">${label}</div>${detail?`<div style="font-size:11px;color:#94A3B8;margin-top:1px">${detail}</div>`:''}</div>
+    <div style="display:flex;gap:5px;flex-shrink:0">${copies}</div>
+  </div>`;
+
+  // OT รายละเอียดแยกเรท
+  const rateDetail = Object.entries(otByRate||{}).sort((a,b)=>a[0]-b[0])
+    .map(([rate,v])=>`×${rate}: ${Math.round(v.mins/60*10)/10} ชม. ฿${baht(v.amount)}`).join('  ·  ');
+
+  return `<div style="border:1px solid #E7EAEE;border-radius:14px;background:#fff;box-shadow:0 1px 3px rgba(16,25,35,.05);padding:14px;margin-bottom:12px">
+    <!-- header -->
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
+      ${avHTML(e,38,false)}
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13.5px;font-weight:600;color:#1A2332;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${name}</div>
+        <div style="font-size:11px;color:#94A3B8">${e.employee_code||'—'} · เงินเดือน ฿${baht(sal)}</div>
+      </div>
+      <span class="badge ${DEPT_CLS[e.department]||'b-blue'}" style="flex-shrink:0">${e.department||'—'}</span>
+    </div>
+
+    <!-- รายได้เพิ่ม -->
+    <div style="background:#F0FAF4;border:1px solid #D7EFE0;border-radius:10px;padding:9px 11px;margin-top:8px">
+      <div style="font-size:11px;font-weight:700;color:#0F7B43;margin-bottom:2px;display:flex;align-items:center;gap:5px"><i class="ti ti-plus" aria-hidden="true"></i>รายได้เพิ่ม → กรอกช่อง "เงินได้"</div>
+      ${lineIncome('OT', otAmount>0?`${otHrs} ชม. · ฿${baht(otAmount)}${rateDetail?'<br>'+rateDetail:''}`:'ไม่มี',
+        otAmount>0 ? cp(otHrs,'ชม.')+cp(Math.round(otAmount),'฿') : '')}
+      ${lineIncome('เบี้ยขยัน', e.diligence_eligible===false?'ไม่มีสิทธิ์':(dil>0?`฿${baht(dil)}`:`ไม่ได้รับ${dilReason?' · '+dilReason:''}`),
+        dil>0 ? cp(dil,'฿') : '')}
+    </div>
+
+    <!-- รายการหัก -->
+    <div style="background:#FEF5F5;border:1px solid #F6DADA;border-radius:10px;padding:9px 11px;margin-top:8px">
+      <div style="font-size:11px;font-weight:700;color:#B91C1C;margin-bottom:2px;display:flex;align-items:center;gap:5px"><i class="ti ti-minus" aria-hidden="true"></i>รายการหัก → กรอกช่อง "เงินหัก"</div>
+      ${lineIncome('มาสาย', lateDeduct>0?`${lateDays} ครั้ง · ${lateMins} นาที · ฿${baht(lateDeduct)} · <a href="javascript:;" onclick="showLateDetail('${e.id}',${m},${y})" style="color:#1565C0">ดูรายละเอียด</a>`:'ไม่มี',
+        lateDeduct>0 ? cp(lateMins,'นาที')+cp(lateDeduct,'฿') : '')}
+      ${lineIncome('ขาดงาน / ลืม scan', absentDays>0?`${absentDays} วัน · ฿${baht(absentDeduct)}`:'ไม่มี',
+        absentDays>0 ? cp(absentDays,'วัน')+cp(absentDeduct,'฿') : '')}
+      ${lineIncome('ลาไม่รับค่าจ้าง', unpaidDays>0?`${unpaidDays} วัน · ฿${baht(unpaidDeduct)}`:'ไม่มี',
+        unpaidDays>0 ? cp(unpaidDays,'วัน')+cp(unpaidDeduct,'฿') : '')}
+    </div>
+
+    <!-- อ้างอิงภายใน -->
+    <div style="display:flex;flex-wrap:wrap;gap:4px 12px;margin-top:9px;padding-top:8px;border-top:1px solid #F0F2F5;font-size:10.5px;color:#A8B0BB">
+      <span>อ้างอิงภายใน (FlowAccount เป็นตัวจริง):</span>
+      <span>ปกส. ฿${baht(sso)}</span><span>ภาษี ฿${baht(tax)}</span><span>สุทธิ ฿${baht(net)}</span>
+    </div>
+  </div>`;
 }
 
 function gotoPayslip(empId){
