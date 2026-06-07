@@ -448,6 +448,7 @@ input[type=file]{display:none}
   #app-d.m-fullpage #d-content{padding:14px 12px 20px}
   #app-d.m-fullpage #btn-back-mobile{display:flex!important;order:-1}
   #app-d.m-fullpage .user-chip-name{display:none}
+  #app-d.m-fullpage .g2{grid-template-columns:1fr}   /* การ์ด OT/หน้าอื่น เรียงคอลัมน์เดียว เต็มจอ */
 }
 </style>
   <!-- Chart.js -->
@@ -7325,33 +7326,45 @@ function otRowHTML(o, showApprove=false){
     rejected: '<span class="badge b-red">ปฏิเสธ</span>',
   }[o.status] || '';
 
+  // วันที่แบบไทยสั้น เช่น 23 พ.ค. 2026
+  let dateLabel = o.ot_date || '';
+  if(o.ot_date){
+    const [yy,mm,dd] = o.ot_date.split('-').map(Number);
+    if(yy&&mm&&dd) dateLabel = `${dd} ${MTH[mm-1]} ${yy}`;
+  }
+  const timeRange = `${o.start_time?.slice(0,5)||''}–${o.end_time?.slice(0,5)||''}`;
+  const hrs       = Math.round((o.ot_minutes||0)/60*10)/10;
+  const dayLabel  = DAY_TYPE_LABEL[o.day_type]||o.day_type||'';
+
   // อนุมัติ OT ได้เฉพาะ owner/hr_manager/dept_head และต้องไม่ใช่ OT ของตัวเอง
   const isApprover = ['owner','hr_manager','dept_head'].includes(currentUser?.role);
   const isOwnOT    = o.employee_id === currentUser?.id;
   const canApproveThis = showApprove && o.status==='pending' && isApprover && !isOwnOT;
 
-  return `<div style="display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:.5px solid #F0F0F0">
-    <div class="av" style="width:36px;height:36px;background:${avBg};flex-shrink:0">${avEl}</div>
-    <div style="flex:1;min-width:0">
-      <div style="font-size:13px;font-weight:500">${name}</div>
-      <div style="font-size:11px;color:#546E7A;margin-top:2px">
-        ${o.ot_date} · ${o.start_time?.slice(0,5)||''} – ${o.end_time?.slice(0,5)||''}
-        (${o.ot_minutes||0} นาที)
+  return `<div style="border:1px solid #EDEFF2;border-radius:13px;padding:13px;margin-bottom:10px;background:#fff;box-shadow:0 1px 3px rgba(16,25,35,.05)">
+    <div style="display:flex;align-items:center;gap:10px">
+      <div class="av" style="width:40px;height:40px;background:${avBg};flex-shrink:0">${avEl}</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13.5px;font-weight:600;color:#1A2332;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${name}</div>
+        <div style="font-size:11px;color:#8A95A3;margin-top:1px;display:flex;align-items:center;gap:4px"><i class="ti ti-calendar-event" style="font-size:12px" aria-hidden="true"></i>${dateLabel}</div>
       </div>
-      <div style="font-size:11px;color:#78909C;margin-top:1px">
-        ${DAY_TYPE_LABEL[o.day_type]||o.day_type||''} ×${o.ot_rate||1.5}
-        → <b style="color:#1565C0">฿${(o.ot_amount||0).toLocaleString('th-TH')}</b>
-      </div>
-      ${o.note?`<div style="font-size:10px;color:#B0BEC5;margin-top:2px">${o.note}</div>`:''}
-    </div>
-    <div style="display:flex;flex-direction:column;align-items:flex-end;gap:5px;flex-shrink:0">
       ${statusBadge}
-      ${canApproveThis ? `
-        <div style="display:flex;gap:4px">
-          <button onclick="approveOT('${o.id}')" style="padding:3px 10px;background:var(--green-l);color:var(--green);border:none;border-radius:6px;font-size:11px;cursor:pointer;font-weight:600">อนุมัติ</button>
-          <button onclick="rejectOT('${o.id}')"  style="padding:3px 10px;background:var(--red-l);color:var(--red);border:none;border-radius:6px;font-size:11px;cursor:pointer;font-weight:600">ปฏิเสธ</button>
-        </div>` : ''}
     </div>
+    <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:11px">
+      <span style="display:inline-flex;align-items:center;gap:4px;background:#F3F5F8;border-radius:8px;padding:5px 9px;font-size:11px;font-weight:500;color:#475569"><i class="ti ti-clock-hour-4" style="font-size:13px" aria-hidden="true"></i>${timeRange}</span>
+      <span style="display:inline-flex;align-items:center;gap:4px;background:#F3F5F8;border-radius:8px;padding:5px 9px;font-size:11px;font-weight:500;color:#475569"><i class="ti ti-hourglass-high" style="font-size:13px" aria-hidden="true"></i>${hrs} ชม.</span>
+      <span style="display:inline-flex;align-items:center;gap:4px;background:#FEF3E2;border-radius:8px;padding:5px 9px;font-size:11px;font-weight:600;color:#9A6212">${dayLabel} ×${o.ot_rate||1.5}</span>
+    </div>
+    ${o.note?`<div style="font-size:11px;color:#94A3B8;margin-top:9px;display:flex;gap:5px;align-items:flex-start"><i class="ti ti-message-2" style="font-size:13px;margin-top:1px" aria-hidden="true"></i><span style="flex:1;min-width:0">${o.note}</span></div>`:''}
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-top:11px;padding-top:10px;border-top:1px dashed #EDEFF2">
+      <span style="font-size:11px;color:#8A95A3">ค่าตอบแทน OT</span>
+      <span style="font-size:17px;font-weight:800;color:#1252A3;letter-spacing:-.02em">฿${(o.ot_amount||0).toLocaleString('th-TH')}</span>
+    </div>
+    ${canApproveThis ? `
+      <div style="display:flex;gap:8px;margin-top:11px">
+        <button onclick="approveOT('${o.id}')" style="flex:1;padding:9px;background:var(--green);color:#fff;border:none;border-radius:10px;font-size:13px;cursor:pointer;font-weight:600;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:5px"><i class="ti ti-check" aria-hidden="true"></i>อนุมัติ</button>
+        <button onclick="rejectOT('${o.id}')" style="flex:1;padding:9px;background:#fff;color:var(--red);border:1px solid #FBD0D0;border-radius:10px;font-size:13px;cursor:pointer;font-weight:600;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:5px"><i class="ti ti-x" aria-hidden="true"></i>ปฏิเสธ</button>
+      </div>` : ''}
   </div>`;
 }
 
