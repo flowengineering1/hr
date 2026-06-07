@@ -439,6 +439,16 @@ input[type=file]{display:none}
 
 @media(min-width:768px){#app-d{display:flex}#app-m{display:none}}
 @media(max-width:767px){#app-m{display:flex}#app-d{display:none}}
+/* เปิดหน้า desktop บนมือถือ (เช่น OT/รายงาน): ซ่อน sidebar ให้เนื้อหาเต็มจอ */
+@media(max-width:767px){
+  #app-d.m-fullpage #sidebar{display:none!important}
+  #app-d.m-fullpage #main{width:100%!important;max-width:100%!important}
+  #app-d.m-fullpage .d-search{display:none!important}
+  #app-d.m-fullpage #d-hdr{padding:0 12px;gap:8px}
+  #app-d.m-fullpage #d-content{padding:14px 12px 20px}
+  #app-d.m-fullpage #btn-back-mobile{display:flex!important;order:-1}
+  #app-d.m-fullpage .user-chip-name{display:none}
+}
 </style>
   <!-- Chart.js -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
@@ -2407,7 +2417,7 @@ function backToMobile(){
   const appM = document.getElementById('app-m');
   const appD = document.getElementById('app-d');
   if(appM) appM.style.cssText = '';
-  if(appD) appD.style.cssText = '';
+  if(appD){ appD.style.cssText = ''; appD.classList.remove('m-fullpage'); }
   const btnBack = document.getElementById('btn-back-mobile');
   if(btnBack) btnBack.style.display = 'none';
 }
@@ -2475,11 +2485,11 @@ function goMDrawer(page){
   if(mobilePages.includes(page)){
     goM(page);
   } else {
-    // หน้าที่ไม่มีใน mobile → เปิด desktop mode + แสดงปุ่มกลับมือถือ
+    // หน้าที่ไม่มีใน mobile → เปิด desktop mode (เต็มจอ ซ่อน sidebar) + ปุ่มกลับมือถือ
     const appM = document.getElementById('app-m');
     const appD = document.getElementById('app-d');
     if(appM) appM.style.cssText = 'display:none!important';
-    if(appD) appD.style.cssText = 'display:flex!important';
+    if(appD){ appD.style.cssText = 'display:flex!important'; appD.classList.add('m-fullpage'); }
     const btnBack = document.getElementById('btn-back-mobile');
     if(btnBack) btnBack.style.display = 'flex';
     goD(page);
