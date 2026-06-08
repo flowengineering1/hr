@@ -362,6 +362,14 @@ input[type=file]{display:none}
 .confirm-ok{color:#fff}
 .confirm-ok:hover{opacity:.9;transform:translateY(-1px)}
 
+/* ===== TOGGLE SWITCH (ใช้ใน Telegram settings + Permission manager) ===== */
+.tg-toggle{position:relative;display:inline-block;width:46px;height:26px;flex-shrink:0;cursor:pointer}
+.tg-toggle input{opacity:0;width:0;height:0;position:absolute}
+.tg-track{position:absolute;inset:0;border-radius:13px;background:#CBD5E1;transition:.25s}
+.tg-track:before{content:'';position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#fff;transition:.25s;box-shadow:0 1px 4px rgba(0,0,0,.2)}
+.tg-toggle input:checked ~ .tg-track{background:var(--blue)}
+.tg-toggle input:checked ~ .tg-track:before{transform:translateX(20px)}
+
 /* ===== NEW DEVICE ALERT ===== */
 .device-alert{position:fixed;top:0;left:0;right:0;z-index:10000;background:#E65100;color:#fff;padding:12px 16px;display:flex;align-items:center;gap:10px;font-size:13px;transform:translateY(-100%);transition:transform .3s ease;box-shadow:0 4px 20px rgba(0,0,0,.3)}
 .device-alert.show{transform:translateY(0)}
@@ -1047,12 +1055,21 @@ input[type=file]{display:none}
           </div>
         </div>
         <div class="g2">
-          <div class="card">
-            <div class="card-hdr"><div class="card-hdr-l"><i class="ti ti-clock" aria-hidden="true"></i>รออนุมัติ</div><span class="badge b-orange" id="d-pend-cnt">0</span></div>
-            <div id="d-leave-pend"></div>
+          <div style="display:flex;flex-direction:column;gap:12px">
+            <div class="card">
+              <div class="card-hdr"><div class="card-hdr-l"><i class="ti ti-clock" aria-hidden="true"></i>รออนุมัติ</div><span class="badge b-orange" id="d-pend-cnt">0</span></div>
+              <div id="d-leave-pend"></div>
+            </div>
+            <div class="card">
+              <div class="card-hdr"><div class="card-hdr-l"><i class="ti ti-x" style="color:var(--red)" aria-hidden="true"></i>ปฏิเสธ / ยกเลิก</div></div>
+              <div id="d-leave-hist"></div>
+            </div>
           </div>
           <div class="card">
-            <div class="card-hdr"><div class="card-hdr-l"><i class="ti ti-check" aria-hidden="true"></i>อนุมัติแล้ว</div></div>
+            <div class="card-hdr">
+              <div class="card-hdr-l"><i class="ti ti-users" aria-hidden="true"></i>ใบลาทีม</div>
+              <span style="font-size:11px;color:#9E9E9E">อนุมัติแล้ว</span>
+            </div>
             <div id="d-leave-app"></div>
           </div>
         </div>
@@ -1099,6 +1116,27 @@ input[type=file]{display:none}
           <select class="f-inp f-sel" id="my-month" style="width:160px" onchange="renderMySummary()"></select>
         </div>
         <div id="my-summary-area"></div>
+
+        <!-- Telegram Chat ID self-service (ทุกคนตั้งได้) -->
+        <div class="card" style="margin-top:12px">
+          <div class="card-hdr" style="margin-bottom:10px;cursor:pointer" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'':'none'">
+            <div class="card-hdr-l"><i class="ti ti-brand-telegram" style="color:#2AABEE" aria-hidden="true"></i>การแจ้งเตือน Telegram ของฉัน</div>
+            <i class="ti ti-chevron-down" style="color:#B0BEC5;font-size:14px" aria-hidden="true"></i>
+          </div>
+          <div style="display:none">
+            <div style="font-size:12px;color:#546E7A;margin-bottom:10px;line-height:1.6">
+              ใส่ Chat ID ของคุณเพื่อรับแจ้งเตือนส่วนตัวผ่าน Telegram เมื่อใบลา/OT ถูกอนุมัติหรือปฏิเสธ
+              <span style="display:block;margin-top:4px;font-size:11px;color:#9E9E9E">วิธีหา Chat ID: Start Bot ของบริษัท → แอดมิน HR จะแจ้ง Chat ID ให้</span>
+            </div>
+            <div class="f-group">
+              <label class="f-lbl">Telegram Chat ID ของฉัน</label>
+              <input type="text" class="f-inp" id="my-tg-chat-id" placeholder="เช่น 123456789">
+            </div>
+            <button class="btn-p" style="width:100%;margin-top:6px" onclick="saveMyChatId()">
+              <i class="ti ti-device-floppy" aria-hidden="true"></i>บันทึก Chat ID
+            </button>
+          </div>
+        </div>
       </div>
 
       <!-- PAYROLL → สรุปส่ง FlowAccount -->
@@ -1285,6 +1323,88 @@ input[type=file]{display:none}
             <div id="public-holidays-list" style="max-height:240px;overflow-y:auto"></div>
           </div>
         </div>
+
+        <!-- ====== Telegram Notifications ====== -->
+        <div style="margin-top:16px">
+          <div class="card" id="tg-settings-card">
+            <div class="card-hdr" style="margin-bottom:0">
+              <div class="card-hdr-l"><i class="ti ti-brand-telegram" style="color:#2AABEE" aria-hidden="true"></i>การแจ้งเตือน Telegram</div>
+              <label class="tg-toggle" title="เปิด/ปิดการแจ้งเตือน">
+                <input type="checkbox" id="tg-enabled" onchange="saveTgToggle()">
+                <span class="tg-track"></span>
+              </label>
+            </div>
+            <div style="font-size:11px;color:#9E9E9E;margin-top:4px;margin-bottom:14px">แจ้งเตือน HR เมื่อมีคนยื่นลา/OT · เตือนลืม scan out · สรุปสิ้นเดือน</div>
+
+            <div id="tg-body" style="display:none">
+              <!-- คำแนะนำ setup -->
+              <div style="background:#EFF8FF;border:1px solid #BAE6FD;border-radius:10px;padding:12px 14px;margin-bottom:14px;font-size:12px;color:#0369A1;line-height:1.7">
+                <b>วิธีตั้งค่าครั้งแรก:</b><br>
+                1. สร้าง Bot ที่ <b>@BotFather</b> → รับ Bot Token<br>
+                2. เพิ่ม Bot เข้ากลุ่ม HR (หรือ Start Bot ส่วนตัว)<br>
+                3. Deploy Edge Function + ตั้ง Secret <code style="background:#fff;padding:1px 5px;border-radius:3px">TELEGRAM_BOT_TOKEN</code><br>
+                4. ดูรายละเอียดทั้งหมดในไฟล์ <b>TELEGRAM_SETUP.md</b>
+              </div>
+
+              <div class="f-group">
+                <label class="f-lbl"><i class="ti ti-users" style="font-size:11px" aria-hidden="true"></i> HR Group Chat ID</label>
+                <input type="text" class="f-inp" id="tg-hr-chat" placeholder="เช่น -1001234567890 (กลุ่ม) หรือ 123456789 (ส่วนตัว)">
+                <div style="font-size:10px;color:#9E9E9E;margin-top:3px">รับแจ้งเตือนรวม: ใบลา · OT · ลืม scan out · สิ้นเดือน</div>
+              </div>
+
+              <!-- ประเภทแจ้งเตือน -->
+              <div style="border-top:1px solid #F1F5F9;margin:14px 0 12px;padding-top:12px">
+                <div style="font-size:11px;font-weight:700;color:#546E7A;text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px">ประเภทการแจ้งเตือน</div>
+                <div style="display:flex;flex-direction:column;gap:10px">
+
+                  <div style="display:flex;align-items:flex-start;gap:12px">
+                    <label class="tg-toggle" style="margin-top:2px">
+                      <input type="checkbox" id="tg-notify-approve" checked>
+                      <span class="tg-track"></span>
+                    </label>
+                    <div>
+                      <div style="font-size:13px;font-weight:500">มีคนยื่นลา / ขอ OT</div>
+                      <div style="font-size:11px;color:#9E9E9E">แจ้ง HR ทันทีที่มีพนักงานส่งคำขอ พร้อมแจ้งพนักงานเมื่ออนุมัติ/ปฏิเสธ</div>
+                    </div>
+                  </div>
+
+                  <div style="display:flex;align-items:flex-start;gap:12px">
+                    <label class="tg-toggle" style="margin-top:2px">
+                      <input type="checkbox" id="tg-notify-scanout" checked>
+                      <span class="tg-track"></span>
+                    </label>
+                    <div>
+                      <div style="font-size:13px;font-weight:500">เตือนลืม scan out (18:30 น.)</div>
+                      <div style="font-size:11px;color:#9E9E9E">แจ้งพนักงานที่เช็คอินแต่ยังไม่เช็คเอาท์ ทุกวันจันทร์-ศุกร์ (ต้องตั้ง pg_cron)</div>
+                    </div>
+                  </div>
+
+                  <div style="display:flex;align-items:flex-start;gap:12px">
+                    <label class="tg-toggle" style="margin-top:2px">
+                      <input type="checkbox" id="tg-notify-monthend" checked>
+                      <span class="tg-track"></span>
+                    </label>
+                    <div>
+                      <div style="font-size:13px;font-weight:500">เตือนสรุปรายเดือน (วันที่ 28)</div>
+                      <div style="font-size:11px;color:#9E9E9E">แจ้ง HR ให้ตรวจสอบและส่งข้อมูล FlowAccount (ต้องตั้ง pg_cron)</div>
+                    </div>
+                  </div>
+
+                </div>
+              </div>
+
+              <div style="display:flex;gap:8px;margin-top:4px">
+                <button class="btn-p" style="flex:1" onclick="saveNotifySettings()">
+                  <i class="ti ti-device-floppy" aria-hidden="true"></i>บันทึก
+                </button>
+                <button class="btn-o" onclick="testTelegramNotify()" style="padding:9px 16px;white-space:nowrap">
+                  <i class="ti ti-send" aria-hidden="true"></i>ทดสอบ
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
       </div>
     </div>
 
@@ -1409,8 +1529,12 @@ input[type=file]{display:none}
         <button class="btn-fw" onclick="showSh('leave')"><i class="ti ti-plus" aria-hidden="true"></i>ยื่นใบลา</button>
         <div class="sec-lbl">ลาวันนี้</div>
         <div class="card" style="padding:12px"><div id="m-leave-today2"></div></div>
-        <div class="sec-lbl">รออนุมัติ</div>
+        <div class="sec-lbl">รออนุมัติ (ของฉัน)</div>
         <div id="m-leave-pend"></div>
+        <div class="sec-lbl"><i class="ti ti-users" style="font-size:12px;vertical-align:middle" aria-hidden="true"></i> ใบลาทีม (อนุมัติแล้ว)</div>
+        <div id="m-leave-app"></div>
+        <div class="sec-lbl">ประวัติของฉัน</div>
+        <div id="m-leave-mine"></div>
       </div>
     </div>
 
@@ -1836,7 +1960,8 @@ function goD(p){
   if(p==='leave-report'){initLeaveReport();}
   if(p==='ot-report'){initOTReport();}
   if(p==='exec-dashboard'){loadExecDashboard();}
-  if(p==='my-summary'){initMySelect();renderMySummary();}
+  if(p==='my-summary'){initMySelect();renderMySummary();loadMyProfile();}
+  if(p==='leave'){loadLeaves();}   // ดึงข้อมูลลาใหม่ทุกครั้ง (กันข้อมูลค้าง หลังมีคนอนุมัติ)
   if(p==='payroll'){initPRSelects();renderPayrollTable();}
   if(p==='payslip'){initPSSelects('d');renderDPS();}
   if(p==='offices')renderOfficesList();
@@ -1853,6 +1978,7 @@ function goM(p){
   document.getElementById('m-title').textContent=t[p]||'Flow HR';
   document.getElementById('m-content').scrollTo(0,0);
   if(p==='checkin'){initCI('m');loadTeamAttend();}
+  if(p==='leave'){loadLeaves();}   // ดึงข้อมูลลาใหม่ทุกครั้ง (กันข้อมูลค้าง หลังมีคนอนุมัติ)
   if(p==='payslip'){initPSSelects('m');renderMPS();}
 }
 
@@ -1867,6 +1993,8 @@ function closeSh(id,e){if(e&&e.target!==document.getElementById('sh-'+id))return
 // ============================================================
 async function loadAll(){
   await Promise.all([loadEmps(),loadOffices(),loadLeaves(),loadOT()]);
+  // โหลด notify settings ทันทีหลัง login (เพื่อให้แจ้งเตือนทำงานได้ทุกหน้า)
+  if(isHR()) loadNotifySettings().catch(()=>{});
 }
 async function loadEmps(){
   let query = db.from('employees').select('*').eq('is_active',true)
@@ -1896,26 +2024,13 @@ async function loadOffices(){
 }
 async function loadLeaves(){
   const uid = currentUser?.id;
-  let query = db.from('leaves')
+  // ทุกคนโหลดใบลาทั้งหมด เพื่อให้เห็นปฏิทินทีมและใบลาของเพื่อนร่วมงาน
+  // (pending/rejected ของคนอื่นจะถูกซ่อนฝั่ง render — ไม่ใช่ฝั่ง fetch)
+  const{data} = await db.from('leaves')
     .select('*, employees!leaves_employee_id_fkey(id,name,department,photo_url,first_name,last_name)')
-    .order('start_date');
+    .order('start_date', {ascending: false});
 
-  if(can('leave_view_all')){
-    // owner, hr_manager, accountant — เห็นทุกคน
-  } else if(can('leave_view_dept') && isDeptHead()){
-    // dept_head — filter หลัง fetch
-  } else {
-    // employee — เห็นแค่ของตัวเอง
-    query = query.eq('employee_id', uid);
-  }
-
-  const{data} = await query;
-
-  let filtered = data||[];
-  if(isDeptHead() && !can('leave_view_all')){
-    filtered = filtered.filter(l => l.employees?.department === myDept() || l.employee_id === uid);
-  }
-  leaves = filtered;
+  leaves = data||[];
   renderLeaveAll();
 }
 
@@ -3876,7 +3991,11 @@ function renderCal(cid){
 
   function lvOnDay(day){
     const ds=`${calY}-${p2(calM+1)}-${p2(day)}`;
-    return leaves.filter(l=>(l.status==='approved'||l.status==='pending')&&l.start_date<=ds&&l.end_date>=ds);
+    const uid=currentUser?.id;
+    // approved ของทุกคน + pending ของตัวเอง
+    return leaves.filter(l=>l.start_date<=ds&&l.end_date>=ds&&(
+      l.status==='approved'||(l.status==='pending'&&l.employee_id===uid)
+    ));
   }
 
   let h=`<div class="cal-grid">`;
@@ -3899,7 +4018,8 @@ function renderCal(cid){
 
 function showDayPopup(day){
   const ds=`${calY}-${p2(calM+1)}-${p2(day)}`;
-  const lvs=leaves.filter(l=>(l.status==='approved'||l.status==='pending')&&l.start_date<=ds&&l.end_date>=ds);
+  const _uid=currentUser?.id;
+  const lvs=leaves.filter(l=>l.start_date<=ds&&l.end_date>=ds&&(l.status==='approved'||(l.status==='pending'&&l.employee_id===_uid)));
   if(!lvs.length){showToast(`${day} ${MTH[calM]} — ไม่มีการลา`);return;}
   showToast(`${day} ${MTH[calM]}: `+lvs.map(l=>(l.employees?.name||'').split(' ')[0]+`(${LV_LABEL[l.type]})`).join(', '));
 }
@@ -3987,7 +4107,11 @@ async function cancelLeave(id, typeLabel){
 
 function renderLeaveToday(){
   const td=todayS();
-  const list=leaves.filter(l=>(l.status==='approved'||l.status==='pending')&&l.start_date<=td&&l.end_date>=td);
+  const uid=currentUser?.id;
+  // approved ของทุกคน + pending ของตัวเอง (pending คนอื่นยังไม่ควรโชว์ก่อนอนุมัติ)
+  const list=leaves.filter(l=>l.start_date<=td&&l.end_date>=td&&(
+    l.status==='approved'||(l.status==='pending'&&l.employee_id===uid)
+  ));
   const html=list.length?list.map(l=>lvRowHTML(l)):'<div style="text-align:center;color:#B0BEC5;padding:16px;font-size:12px">ไม่มีพนักงานลาวันนี้</div>';
   ['d-leave-today','m-leave-today','m-leave-today2'].forEach(id=>{const el=document.getElementById(id);if(el)el.innerHTML=html;});
 }
@@ -3996,20 +4120,31 @@ function renderLeavePend(){
   const uid = currentUser?.id;
   const isApprover = can('leave_approve'); // owner, hr_manager, dept_head
 
-  // pending — approver เห็นทุกคนในแผนก, employee เห็นแค่ตัวเอง
+  // -----------------------------------------------------------
+  // รออนุมัติ — approver เห็นทุกคน · employee เห็นแค่ตัวเอง
+  // -----------------------------------------------------------
   const pend = leaves.filter(l => l.status==='pending' && (
     isApprover ? true : l.employee_id === uid
   ));
 
-  // approved — approver เห็นทีม, employee เห็นแค่ตัวเอง
-  const app = leaves.filter(l => l.status==='approved' && (
+  // -----------------------------------------------------------
+  // ใบลาทีม — approved ของทุกคน (ทุก role เห็น, เรียงล่าสุดก่อน)
+  // -----------------------------------------------------------
+  const app = leaves.filter(l => l.status==='approved').slice(0,40);
+
+  // -----------------------------------------------------------
+  // ประวัติส่วนตัว — approved/rejected/cancelled ของตัวเอง
+  // (แสดงใน "ใบลาของฉัน" section ฝั่ง mobile)
+  // -----------------------------------------------------------
+  const mine = leaves.filter(l => l.employee_id === uid && l.status !== 'pending').slice(0,10);
+
+  // -----------------------------------------------------------
+  // ปฏิเสธ/ยกเลิก — approver เห็นทั้งหมด, employee เห็นแค่ตัวเอง
+  // (ฝั่ง desktop แสดงใน d-leave-hist)
+  // -----------------------------------------------------------
+  const rej = leaves.filter(l => ['rejected','cancelled'].includes(l.status) && (
     isApprover ? true : l.employee_id === uid
   )).slice(0,10);
-
-  // rejected — employee เห็นใบลาที่ถูกปฏิเสธของตัวเอง
-  const rej = leaves.filter(l => l.status==='rejected' && (
-    isApprover ? true : l.employee_id === uid
-  )).slice(0,5);
 
   // update badge
   const pc = document.getElementById('d-pend-cnt');
@@ -4023,19 +4158,33 @@ function renderLeavePend(){
 
   const noData = '<div style="text-align:center;color:#B0BEC5;padding:16px;font-size:12px">ไม่มีรายการ</div>';
 
+  // ===== DESKTOP =====
+
   // รออนุมัติ
   const dp = document.getElementById('d-leave-pend');
   if(dp) dp.innerHTML = pend.length ? pend.map(l=>lvRowHTML(l,true)).join('') : noData;
 
-  // อนุมัติแล้ว + ปฏิเสธ
+  // ใบลาทีม (approved ทุกคน)
   const da = document.getElementById('d-leave-app');
-  if(da) da.innerHTML = (app.length||rej.length)
-    ? [...app.map(l=>lvRowHTML(l)), ...rej.map(l=>lvRowHTML(l))].join('')
-    : noData;
+  if(da) da.innerHTML = app.length ? app.map(l=>lvRowHTML(l)).join('') : noData;
 
-  // mobile
+  // ปฏิเสธ/ยกเลิก
+  const dh = document.getElementById('d-leave-hist');
+  if(dh) dh.innerHTML = rej.length ? rej.map(l=>lvRowHTML(l)).join('') : noData;
+
+  // ===== MOBILE =====
+
+  // รออนุมัติ (ของฉัน)
   const mp = document.getElementById('m-leave-pend');
   if(mp) mp.innerHTML = pend.length ? pend.map(l=>lvRowHTML(l,true)).join('') : noData;
+
+  // ใบลาทีม (approved ทุกคน)
+  const ma = document.getElementById('m-leave-app');
+  if(ma) ma.innerHTML = app.length ? app.map(l=>lvRowHTML(l)).join('') : noData;
+
+  // ประวัติของฉัน (own: approved + rejected + cancelled)
+  const mh = document.getElementById('m-leave-mine');
+  if(mh) mh.innerHTML = mine.length ? mine.map(l=>lvRowHTML(l)).join('') : noData;
 }
 
 async function approveLv(id){
@@ -4052,6 +4201,9 @@ async function approveLv(id){
       if(!can('leave_approve')){ showToast('ไม่มีสิทธิ์อนุมัติใบลา'); return; }
       await db.from('leaves').update({status:'approved'}).eq('id',id);
       showToast('อนุมัติใบลาแล้ว ✅'); await loadLeaves();
+      // แจ้งพนักงาน
+      const _typeTh = {annual:'ลาพักร้อน',sick:'ลาป่วย',personal:'ลากิจ',unpaid:'ลาไม่รับเงิน'}[l?.type]||l?.type||'ลา';
+      tgNotifyEmployee(l.employee_id, `✅ <b>ใบลาของคุณได้รับการอนุมัติ</b>\n${_typeTh} ${l.start_date||''} – ${l.end_date||''} (${l.days||1} วัน)\n\nพักผ่อนให้เต็มที่นะครับ 😊`);
     }
   });
 }
@@ -4069,6 +4221,9 @@ async function rejectLv(id){
       if(!can('leave_approve')){ showToast('ไม่มีสิทธิ์ปฏิเสธใบลา'); return; }
       await db.from('leaves').update({status:'rejected'}).eq('id',id);
       showToast('ปฏิเสธใบลาแล้ว'); await loadLeaves();
+      // แจ้งพนักงาน
+      const _typeTh = {annual:'ลาพักร้อน',sick:'ลาป่วย',personal:'ลากิจ',unpaid:'ลาไม่รับเงิน'}[l?.type]||l?.type||'ลา';
+      tgNotifyEmployee(l.employee_id, `❌ <b>ใบลาของคุณถูกปฏิเสธ</b>\n${_typeTh} ${l.start_date||''} – ${l.end_date||''}\n\nกรุณาติดต่อ HR สำหรับข้อมูลเพิ่มเติม`);
     }
   });
 }
@@ -4139,6 +4294,10 @@ async function submitLeave(){
   closeSh('leave');
   showToast(`ส่งใบลาสำเร็จ (${days} วันทำงาน) ✅`);
   await loadLeaves();
+  // แจ้ง HR ผ่าน Telegram (fire-and-forget)
+  const _lvTypeTh = {annual:'ลาพักร้อน',sick:'ลาป่วย',personal:'ลากิจ',unpaid:'ลาไม่รับเงิน'}[type]||type;
+  const _myName   = currentUser?.first_name ? currentUser.first_name+' '+(currentUser.last_name||'') : currentUser?.name||'พนักงาน';
+  tgNotifyHR(`📋 <b>มีคำขอลาใหม่</b>\n<b>${_myName}</b> ขอ${_lvTypeTh}\nวันที่ ${s} – ${e} (${days} วันทำงาน)\n\nกรุณาเข้า <b>Flow HR</b> เพื่ออนุมัติ`);
 }
 
 // ============================================================
@@ -6287,6 +6446,118 @@ async function loadSettings(){
   set('set-diligence-annual',s.diligence_allow_annual===false?'false':'true');
   set('set-annual-days',     s.annual_leave_days??6);
   set('set-annual-after',    s.annual_leave_after_months??12);
+  // โหลดการตั้งค่า Telegram ด้วย (ถ้าเป็น HR/Owner)
+  if(isHR()) loadNotifySettings();
+  // โหลด Telegram Chat ID ของตัวเองใน profile
+  loadMyProfile();
+}
+
+// ============================================================
+// TELEGRAM NOTIFICATIONS (Phase 2D)
+// ============================================================
+
+// โหลดการตั้งค่า Telegram จาก notify_settings (สำหรับ HR/Owner)
+async function loadNotifySettings(){
+  const{data} = await db.from('notify_settings').select('*').limit(1);
+  if(!data?.length) return;
+  const s = data[0];
+  notifySettings = s;
+  const chk = (id, val) => { const el=document.getElementById(id); if(el) el.checked = !!val; };
+  const set = (id, val) => { const el=document.getElementById(id); if(el&&val!=null) el.value=val; };
+  chk('tg-enabled',         s.telegram_enabled||false);
+  const body = document.getElementById('tg-body');
+  if(body) body.style.display = s.telegram_enabled ? '' : 'none';
+  if(s.hr_chat_id)  set('tg-hr-chat',         s.hr_chat_id);
+  chk('tg-notify-approve',  s.notify_approve !== false);
+  chk('tg-notify-scanout',  s.notify_scanout  !== false);
+  chk('tg-notify-monthend', s.notify_monthend !== false);
+}
+
+// Toggle เปิด/ปิดการแจ้งเตือน (auto-save ทันที)
+function saveTgToggle(){
+  const enabled = document.getElementById('tg-enabled')?.checked;
+  const body = document.getElementById('tg-body');
+  if(body) body.style.display = enabled ? '' : 'none';
+  db.from('notify_settings').update({telegram_enabled: enabled, updated_at: new Date().toISOString()}).eq('id',1)
+    .then(({error}) => { if(!error) notifySettings.telegram_enabled = enabled; });
+}
+
+// บันทึกการตั้งค่า Telegram ทั้งหมด
+async function saveNotifySettings(){
+  if(!isHR()){ showToast('เฉพาะ HR / Owner'); return; }
+  const payload = {
+    telegram_enabled: document.getElementById('tg-enabled')?.checked||false,
+    hr_chat_id:       (document.getElementById('tg-hr-chat')?.value||'').trim()||null,
+    notify_approve:   document.getElementById('tg-notify-approve')?.checked !== false,
+    notify_scanout:   document.getElementById('tg-notify-scanout')?.checked  !== false,
+    notify_monthend:  document.getElementById('tg-notify-monthend')?.checked !== false,
+    updated_at:       new Date().toISOString(),
+  };
+  const{error} = await db.from('notify_settings').update(payload).eq('id',1);
+  if(error){ showToast('ผิดพลาด: '+error.message); return; }
+  notifySettings = {...notifySettings, ...payload};
+  showToast('บันทึกการตั้งค่า Telegram แล้ว ✅');
+}
+
+// ทดสอบส่งข้อความ Telegram
+async function testTelegramNotify(){
+  if(!isHR()){ showToast('เฉพาะ HR / Owner'); return; }
+  const chatId = (document.getElementById('tg-hr-chat')?.value||'').trim();
+  if(!chatId){ showToast('กรุณาระบุ HR Chat ID ก่อน'); return; }
+  showToast('กำลังส่งข้อความทดสอบ...');
+  const result = await sendTelegramMsg(chatId, '✅ <b>Flow HR System</b>\n\nทดสอบการแจ้งเตือน Telegram สำเร็จ! 🎉\nระบบพร้อมส่งการแจ้งเตือนแล้ว');
+  if(result?.ok) showToast('ส่งสำเร็จ! ✅ ตรวจสอบ Telegram ของคุณ');
+  else showToast('ส่งไม่สำเร็จ: '+(result?.description||result?.error||'ตรวจสอบ Bot Token + Chat ID'));
+}
+
+// ส่งข้อความผ่าน Supabase Edge Function (ไม่เปิดเผย Bot Token ใน frontend)
+async function sendTelegramMsg(chatId, text){
+  try{
+    const{data, error} = await db.functions.invoke('notify-telegram', {
+      body: { chat_id: String(chatId), message: text }
+    });
+    if(error) throw error;
+    return data;
+  } catch(e){
+    console.warn('[Telegram] send failed:', e?.message||e);
+    return null;
+  }
+}
+
+// แจ้ง HR Group (ใช้ตอนมีคนยื่นลา/OT)
+async function tgNotifyHR(text){
+  if(!notifySettings?.telegram_enabled) return;
+  if(!notifySettings?.notify_approve) return;
+  if(!notifySettings?.hr_chat_id) return;
+  await sendTelegramMsg(notifySettings.hr_chat_id, text);
+}
+
+// แจ้งพนักงานรายคน (ใช้ตอนอนุมัติ/ปฏิเสธ)
+async function tgNotifyEmployee(empId, text){
+  if(!notifySettings?.telegram_enabled) return;
+  const emp = emps.find(e=>e.id===empId);
+  if(!emp?.telegram_chat_id) return;
+  await sendTelegramMsg(emp.telegram_chat_id, text);
+}
+
+// โหลด Chat ID ของตัวเองในหน้า Profile
+async function loadMyProfile(){
+  if(!currentUser) return;
+  const emp = emps.find(e=>e.id===currentUser.id);
+  const el = document.getElementById('my-tg-chat-id');
+  if(el && emp?.telegram_chat_id) el.value = emp.telegram_chat_id;
+}
+
+// บันทึก Chat ID ของตัวเอง
+async function saveMyChatId(){
+  if(!currentUser){ showToast('กรุณา Login ก่อน'); return; }
+  const chatId = (document.getElementById('my-tg-chat-id')?.value||'').trim()||null;
+  const{error} = await db.from('employees').update({telegram_chat_id: chatId}).eq('id', currentUser.id);
+  if(error){ showToast('ผิดพลาด: '+error.message); return; }
+  // อัปเดต local cache
+  const emp = emps.find(e=>e.id===currentUser.id);
+  if(emp) emp.telegram_chat_id = chatId;
+  showToast(chatId ? 'บันทึก Chat ID แล้ว ✅ คุณจะได้รับแจ้งเตือนส่วนตัว' : 'ลบ Chat ID แล้ว (ปิดแจ้งเตือนส่วนตัว)');
 }
 
 // ============================================================
@@ -7612,6 +7883,7 @@ const _origOpenAdd = openAddEmpSheet;
 // OT SYSTEM
 // ============================================================
 let otRequests = [];
+let notifySettings = {};   // Telegram / notify_settings row
 
 const DAY_TYPE_LABEL = {
   weekday:    'จ–ศ หลังเลิกงาน',
@@ -7718,6 +7990,11 @@ async function submitOT(){
   ['ot-date','ot-reason'].forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; });
   const prev = document.getElementById('ot-preview');
   if(prev) prev.style.display='none';
+  // แจ้ง HR ผ่าน Telegram (fire-and-forget)
+  const _otMyName = currentUser?.first_name ? currentUser.first_name+' '+(currentUser.last_name||'') : currentUser?.name||'พนักงาน';
+  const _hrs = Math.floor(mins/60), _mn = mins%60;
+  const _dur = _hrs > 0 ? `${_hrs} ชม. ${_mn} นาที` : `${_mn} นาที`;
+  tgNotifyHR(`⏰ <b>มีคำขอ OT ใหม่</b>\n<b>${_otMyName}</b> ขอ OT\nวันที่ ${date} (${start}–${end}) · ${_dur}\nยอดประมาณ ฿${amount.toLocaleString('th-TH')}\n\nกรุณาเข้า <b>Flow HR</b> เพื่ออนุมัติ`);
 }
 
 // โหลด OT records
@@ -7900,6 +8177,8 @@ async function approveOT(id){
       const{error} = await db.from('ot_records').update({status:'approved'}).eq('id',id);
       if(error){ showToast('เกิดข้อผิดพลาด'); return; }
       showToast('อนุมัติ OT แล้ว ✅'); await loadOT();
+      // แจ้งพนักงาน
+      tgNotifyEmployee(o.employee_id, `✅ <b>OT ของคุณได้รับการอนุมัติ</b>\nวันที่ ${o.ot_date||''} (${(o.start_time||'').slice(0,5)} – ${(o.end_time||'').slice(0,5)})\nยอด OT ฿${(o.ot_amount||0).toLocaleString('th-TH')} 💰`);
     }
   });
 }
@@ -7919,6 +8198,8 @@ async function rejectOT(id){
       const{error} = await db.from('ot_records').update({status:'rejected'}).eq('id',id);
       if(error){ showToast('เกิดข้อผิดพลาด'); return; }
       showToast('ปฏิเสธ OT แล้ว'); await loadOT();
+      // แจ้งพนักงาน
+      tgNotifyEmployee(o.employee_id, `❌ <b>OT ของคุณถูกปฏิเสธ</b>\nวันที่ ${o.ot_date||''} (${(o.start_time||'').slice(0,5)} – ${(o.end_time||'').slice(0,5)})\n\nกรุณาติดต่อ HR สำหรับข้อมูลเพิ่มเติม`);
     }
   });
 }
